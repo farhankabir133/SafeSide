@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/src/components/ui/button";
+import { Input } from "@/src/components/ui/input";
+import { ScrollArea } from "@/src/components/ui/scroll-area";
 import { BrainCircuit, Send, User, Bot, Loader2, X } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/src/lib/utils";
 import { ai, MODEL_ID } from "@/src/services/geminiService";
 
 interface Message {
@@ -54,8 +54,7 @@ export function ChatInterface({ matches, selectedMatch, onClearSelected }: ChatI
         }
       }
 
-      const chat = ai.chats.create({
-        model: MODEL_ID,
+      const chat = ai.startChat({
         history: messages.map(m => ({
           role: m.role,
           parts: [{ text: m.content }]
@@ -85,11 +84,10 @@ ${selectedContext}
 Scanned Data Context:
 ${matchesSummary}`;
 
-      const result = await chat.sendMessage({
-        message: `${systemPrompt}\n\nUser Message: ${userMessage}`
-      });
+      const result = await chat.sendMessage(`${systemPrompt}\n\nUser Message: ${userMessage}`);
+      const text = result.response.text();
 
-      setMessages(prev => [...prev, { role: 'model', content: result.text }]);
+      setMessages(prev => [...prev, { role: 'model', content: text }]);
     } catch (error: any) {
       const errorMessage = error.message || "Simulation failed. Please check connectivity.";
       setMessages(prev => [...prev, { role: 'model', content: `Agent Offline: ${errorMessage}` }]);

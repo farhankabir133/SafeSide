@@ -1,13 +1,29 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardFooter } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Zap, AlertTriangle, ShieldCheck, Target, Shield, Info, Activity, History, MessageSquare } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardFooter } from '@/src/components/ui/card';
+import { Badge } from '@/src/components/ui/badge';
+import { Progress } from '@/src/components/ui/progress';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/src/components/ui/tabs';
+import { 
+  Zap, 
+  AlertTriangle, 
+  ShieldCheck, 
+  Target, 
+  Shield, 
+  Info, 
+  Activity, 
+  History, 
+  MessageSquare,
+  TrendingUp,
+  AlertCircle,
+  BarChart3,
+  Dna,
+  BrainCircuit
+} from 'lucide-react';
 import { MatchAnalysis } from '@/src/services/geminiService';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Skeleton } from '@/src/components/ui/skeleton';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -22,7 +38,7 @@ interface PredictionCardProps {
 }
 
 export const PredictionCard: React.FC<PredictionCardProps> = ({ match, analysis, onQueryAgent, onViewDetails, isFlashing }) => {
-  const { prediction, risk_assessment, micro_events, reasoning_summary } = analysis;
+  const { prediction, risk_assessment, micro_events, reasoning_summary, form_analysis } = analysis;
   const [h2hData, setH2hData] = useState<any>(null);
   const [h2hLoading, setH2hLoading] = useState(false);
 
@@ -59,43 +75,6 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({ match, analysis,
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'IN_PLAY':
-      case 'LIVE':
-      case 'PAUSED':
-        return (
-          <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 hover:bg-emerald-500/20 px-2 py-0 text-[10px] font-black uppercase tracking-widest whitespace-nowrap">
-            <span className="relative flex h-1.5 w-1.5 mr-1.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
-            </span>
-            Live
-          </Badge>
-        );
-      case 'FINISHED':
-      case 'AWARDED':
-        return (
-          <Badge variant="secondary" className="bg-zinc-800 text-zinc-400 border-zinc-700 px-2 py-0 text-[10px] font-black uppercase tracking-widest whitespace-nowrap">
-            Full Time
-          </Badge>
-        );
-      case 'POSTPONED':
-      case 'CANCELLED':
-        return (
-          <Badge variant="destructive" className="bg-red-500/10 text-red-500 border-red-500/20 px-2 py-0 text-[10px] font-black uppercase tracking-widest whitespace-nowrap">
-            {status}
-          </Badge>
-        );
-      default:
-        return (
-          <Badge variant="outline" className="text-zinc-500 border-zinc-800 px-2 py-0 text-[10px] font-black uppercase tracking-widest whitespace-nowrap">
-            Upcoming
-          </Badge>
-        );
-    }
-  };
-
   const isLive = ['IN_PLAY', 'PAUSED', 'LIVE'].includes(match.status);
 
   // Dynamic live probability adjustment
@@ -107,8 +86,6 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({ match, analysis,
     const awayScore = match.score?.fullTime?.away ?? 0;
     const diff = homeScore - awayScore;
 
-    // Shift probabilities based on score
-    // This is a simplified heuristic for visual representation
     let homeShift = diff * 15;
     let awayShift = -diff * 15;
     
@@ -120,295 +97,424 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({ match, analysis,
   }, [match.score?.fullTime, match.status, prediction.win_probability, isLive]);
 
   return (
-    <Card className="bg-zinc-950 border-zinc-900 text-zinc-100 overflow-hidden rounded-3xl">
-      <CardHeader className="pb-4 border-b border-zinc-900">
-        <div className="flex justify-between items-center mb-6">
-          <div className="flex flex-col">
-            <Badge variant="outline" className={cn("font-mono text-[10px] uppercase tracking-widest px-3 py-1 rounded-full mb-2 w-fit", getRiskColor(risk_assessment.level))}>
-              {risk_assessment.level} Risk Profile
-            </Badge>
+    <Card className="bg-zinc-950 border-zinc-900 text-zinc-100 overflow-hidden rounded-[32px] group/card hover:border-zinc-700/50 transition-all duration-500">
+      <CardHeader className="pb-6 border-b border-zinc-900 bg-black/20">
+        <div className="flex justify-between items-start mb-8">
+          <div className="flex flex-col gap-3">
+             <div className="flex flex-wrap gap-2">
+                <Badge variant="outline" className={cn("font-mono text-[9px] uppercase tracking-widest px-3 py-1 rounded-lg", getRiskColor(risk_assessment.level))}>
+                  {risk_assessment.level} MISSION PROFILE
+                </Badge>
+                {prediction.value_bet && (
+                   <Badge className="bg-emerald-500 text-black font-black text-[9px] uppercase tracking-widest px-3 py-1 rounded-lg flex items-center gap-1.5 shadow-[0_0_15px_rgba(16,185,129,0.3)]">
+                      <TrendingUp className="w-3 h-3" />
+                      Value Identified
+                   </Badge>
+                )}
+                {prediction.trap_game_warning && (
+                   <Badge className="bg-red-500 text-white font-black text-[9px] uppercase tracking-widest px-3 py-1 rounded-lg flex items-center gap-1.5 shadow-[0_0_15px_rgba(239,68,68,0.3)]">
+                      <AlertCircle className="w-3 h-3" />
+                      Trap Game Alert
+                   </Badge>
+                )}
+             </div>
             <div className="flex items-center gap-3 text-[10px] text-zinc-500 font-bold uppercase tracking-widest px-1">
-              <span>{competition}</span>
+              <span className="text-zinc-400">{competition}</span>
               <span className="opacity-30">•</span>
               <div className="flex items-center gap-2">
-                {getStatusBadge(match.status)}
-                {!isLive && (
-                  <span>{matchDate} @ {matchTime}</span>
-                )}
+                <span>{matchDate}</span>
+                <span className="opacity-30">@</span>
+                <span className="text-zinc-100">{matchTime}</span>
               </div>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {isLive && (
-              <div className={cn(
-                "px-3 py-1 rounded-lg border mr-4 transition-all duration-300",
-                isFlashing 
-                  ? "bg-emerald-500 border-transparent scale-110 shadow-[0_0_20px_rgba(16,185,129,0.5)]" 
-                  : "bg-emerald-500/10 border-emerald-500/20"
-              )}>
-                 <span className={cn(
-                   "text-xl font-black tracking-wider transition-colors",
-                   isFlashing ? "text-black" : "text-emerald-500"
-                 )}>
-                  {match.score?.fullTime?.home ?? 0} <span className={cn("mx-1", isFlashing ? "text-black/50" : "text-zinc-700")}>—</span> {match.score?.fullTime?.away ?? 0}
-                 </span>
-              </div>
-            )}
-            <div className="flex -space-x-1">
-              {[1, 2, 3].map(i => (
-                <div key={i} className="w-5 h-5 rounded-full bg-zinc-800 border-2 border-zinc-950 flex items-center justify-center">
-                  <ShieldCheck className="w-3 h-3 text-emerald-500" />
-                </div>
-              ))}
-            </div>
-            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-tighter">Analyzed by SafeSide AI</span>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 items-center gap-6">
-          <div className="text-center md:text-right">
-            <p className="text-sm font-bold text-zinc-500 uppercase tracking-widest mb-1">Home</p>
-            <h3 className="text-2xl font-black tracking-tighter truncate uppercase">{homeTeam}</h3>
-            <p className={cn("font-mono font-bold text-xs mt-1 transition-colors", isLive ? "text-yellow-500" : "text-emerald-500")}>
-              {isLive ? liveProbabilities.home : prediction.win_probability.home}% {isLive ? "Live" : "Prob."}
-            </p>
           </div>
           
-          <div className="relative">
-             <div className="absolute inset-0 flex items-center justify-center opacity-10">
-                <Target className="w-16 h-16 text-yellow-500" />
-             </div>
-             <div className="relative flex flex-col items-center justify-center bg-zinc-900 border border-zinc-800 rounded-2xl py-6">
-                <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-1">Safe Side</span>
-                <span className="text-3xl font-black text-yellow-500 animate-pulse uppercase italic">{prediction.safe_side}</span>
-                <div className="mt-4 bg-black/50 px-4 py-1 rounded-full border border-zinc-800">
-                   <span className="text-lg font-black tracking-widest">{prediction.scoreline}</span>
+          <div className="flex items-center gap-4">
+             <div className="flex flex-col items-end">
+                <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1">Confidence</span>
+                <div className="flex items-center gap-2">
+                   <span className="text-xl font-black text-yellow-500">{prediction.confidence_score}%</span>
                 </div>
              </div>
-          </div>
-
-          <div className="text-center md:text-left">
-            <p className="text-sm font-bold text-zinc-500 uppercase tracking-widest mb-1">Away</p>
-            <h3 className="text-2xl font-black tracking-tighter truncate uppercase">{awayTeam}</h3>
-            <p className={cn("font-mono font-bold text-xs mt-1 transition-colors", isLive ? "text-yellow-500" : "text-emerald-500")}>
-              {isLive ? liveProbabilities.away : prediction.win_probability.away}% {isLive ? "Live" : "Prob."}
-            </p>
+             <div className="w-10 h-10 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center group-hover/card:border-emerald-500/50 transition-colors">
+                <ShieldCheck className="w-5 h-5 text-emerald-500" />
+             </div>
           </div>
         </div>
 
-        {/* Probability Distribution Bar */}
-        <div className="mt-8 space-y-2">
-          <div className="flex justify-between items-end px-1">
-            <span className={cn("text-[10px] font-black uppercase tracking-widest transition-colors", isLive ? "text-yellow-500 animate-pulse" : "text-emerald-500")}>
-              Home {isLive ? liveProbabilities.home : prediction.win_probability.home}%
-            </span>
-            <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">
-              Draw {isLive ? liveProbabilities.draw : prediction.win_probability.draw}%
-            </span>
-            <span className={cn("text-[10px] font-black uppercase tracking-widest transition-colors", isLive ? "text-blue-400" : "text-blue-500")}>
-              Away {isLive ? liveProbabilities.away : prediction.win_probability.away}%
-            </span>
+        <div className="grid grid-cols-1 md:grid-cols-7 items-center gap-4 md:gap-0">
+          <div className="md:col-span-3 flex flex-col md:flex-row items-center gap-6 px-4">
+            <div className="w-20 h-20 bg-zinc-900 rounded-3xl border border-zinc-800 p-4 transition-transform group-hover/card:scale-105 duration-500 flex items-center justify-center">
+               <img src={match.homeTeam.crest} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+            </div>
+            <div className="text-center md:text-left flex-1 min-w-0">
+              <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1">Host Entity</p>
+              <h3 className="text-2xl font-black tracking-tighter truncate uppercase text-zinc-100">{homeTeam}</h3>
+              <div className="flex items-center justify-center md:justify-start gap-3 mt-2">
+                 <span className="text-[10px] font-mono text-emerald-500 font-bold bg-emerald-500/5 px-2 py-0.5 rounded border border-emerald-500/10">
+                   Prob: {isLive ? liveProbabilities.home : prediction.win_probability.home}%
+                 </span>
+                 {risk_assessment.fatigue_index && (
+                   <span className="text-[9px] font-black text-zinc-600 uppercase">Fatigue: {risk_assessment.fatigue_index.home}/10</span>
+                 )}
+              </div>
+            </div>
           </div>
-          <div className={cn(
-            "h-2 w-full flex rounded-full overflow-hidden bg-zinc-900 border border-zinc-800 shadow-inner",
-            isLive && "ring-1 ring-yellow-500/50 shadow-[0_0_15px_rgba(234,179,8,0.2)]"
-          )}>
-            <div 
-              style={{ width: `${isLive ? liveProbabilities.home : prediction.win_probability.home}%` }} 
-              className={cn("h-full transition-all duration-1000", isLive ? "bg-yellow-500" : "bg-emerald-500", !isLive && "shadow-[0_0_10px_rgba(16,185,129,0.3)]")}
-            />
-            <div 
-              style={{ width: `${isLive ? liveProbabilities.draw : prediction.win_probability.draw}%` }} 
-              className="h-full bg-zinc-700 transition-all duration-1000"
-            />
-            <div 
-              style={{ width: `${isLive ? liveProbabilities.away : prediction.win_probability.away}%` }} 
-              className={cn("h-full transition-all duration-1000", isLive ? "bg-blue-400" : "bg-blue-500", !isLive && "shadow-[0_0_10px_rgba(59,130,246,0.3)]")}
-            />
-          </div>
-          {isLive && (
-             <div className="flex items-center justify-center gap-2 pt-1">
-                <div className="w-1 h-1 rounded-full bg-yellow-500 animate-ping" />
-                <span className="text-[8px] font-black uppercase text-yellow-500 tracking-[0.2em] italic">Live Intelligence Shift Detected</span>
+          
+          <div className="md:col-span-1 flex flex-col items-center justify-center relative py-4">
+             <div className="absolute inset-0 flex items-center justify-center opacity-[0.03]">
+                <Target className="w-20 h-20 text-yellow-500" />
              </div>
-          )}
+             <div className="bg-zinc-900/80 backdrop-blur-sm border border-zinc-800 rounded-2xl py-3 px-6 shadow-xl relative z-10">
+                <p className="text-[8px] font-black text-yellow-500 uppercase tracking-[0.2em] mb-1 text-center">Scoreline</p>
+                <p className="text-2xl font-black text-white tracking-tighter text-center">{prediction.scoreline}</p>
+             </div>
+             <div className="mt-3 flex items-center gap-1.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">{prediction.safe_side}</span>
+             </div>
+          </div>
+
+          <div className="md:col-span-3 flex flex-col md:flex-row-reverse items-center gap-6 px-4">
+            <div className="w-20 h-20 bg-zinc-900 rounded-3xl border border-zinc-800 p-4 transition-transform group-hover/card:scale-105 duration-500 flex items-center justify-center">
+               <img src={match.awayTeam.crest} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+            </div>
+            <div className="text-center md:text-right flex-1 min-w-0">
+              <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1">Assailant Node</p>
+              <h3 className="text-2xl font-black tracking-tighter truncate uppercase text-zinc-100">{awayTeam}</h3>
+              <div className="flex items-center justify-center md:justify-end gap-3 mt-2">
+                 {risk_assessment.fatigue_index && (
+                   <span className="text-[9px] font-black text-zinc-600 uppercase">Fatigue: {risk_assessment.fatigue_index.away}/10</span>
+                 )}
+                 <span className="text-[10px] font-mono text-blue-400 font-bold bg-blue-500/5 px-2 py-0.5 rounded border border-blue-500/10">
+                   Prob: {isLive ? liveProbabilities.away : prediction.win_probability.away}%
+                 </span>
+              </div>
+            </div>
+          </div>
         </div>
       </CardHeader>
 
-      <CardContent className="pt-8 space-y-8">
-        {/* Intelligence Brief */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800 space-y-3">
-             <div className="flex items-center gap-2">
-                <Zap className="w-4 h-4 text-yellow-500" />
-                <span className="text-[10px] font-black uppercase text-zinc-400 tracking-widest">Intelligence Confidence</span>
-             </div>
-             <div className="flex items-end justify-between">
-                <span className="text-3xl font-black text-yellow-400 leading-none">{prediction.confidence_score}<span className="text-sm text-zinc-600">/10</span></span>
-                <div className="w-24">
-                   <Progress value={prediction.confidence_score * 10} className="h-1.5 bg-black" />
-                </div>
-             </div>
-          </div>
-          
-          <div className={cn("p-4 rounded-2xl border flex flex-col justify-between", 
-            risk_assessment.level === 'Low' ? 'bg-emerald-500/5 border-emerald-500/20' :
-            risk_assessment.level === 'Medium' ? 'bg-yellow-500/5 border-yellow-500/20' :
-            'bg-red-500/5 border-red-500/20'
-          )}>
-             <div className="flex items-center gap-2">
-                <ShieldCheck className={cn("w-4 h-4", 
-                  risk_assessment.level === 'Low' ? 'text-emerald-500' :
-                  risk_assessment.level === 'Medium' ? 'text-yellow-500' :
-                  'text-red-500'
-                )} />
-                <span className="text-[10px] font-black uppercase text-zinc-400 tracking-widest">Risk Classification</span>
-             </div>
-             <span className={cn("text-xl font-black uppercase tracking-tighter",
-               risk_assessment.level === 'Low' ? 'text-emerald-400' :
-               risk_assessment.level === 'Medium' ? 'text-yellow-400' :
-               'text-red-400'
-             )}>{risk_assessment.level} Exposure</span>
-          </div>
-        </div>
+      <CardContent className="pt-8 pb-4">
+        <Tabs defaultValue="strategy" className="w-full">
+           <TabsList className="w-full grid grid-cols-4 bg-zinc-900/50 p-1 rounded-2xl h-12 mb-8">
+              <TabsTrigger value="strategy" className="data-[state=active]:bg-zinc-800 rounded-xl text-[10px] font-black uppercase tracking-widest">Tactical Audit</TabsTrigger>
+              <TabsTrigger value="risk" className="data-[state=active]:bg-zinc-800 rounded-xl text-[10px] font-black uppercase tracking-widest">Risk Guard</TabsTrigger>
+              <TabsTrigger value="modeling" className="data-[state=active]:bg-zinc-800 rounded-xl text-[10px] font-black uppercase tracking-widest">Quant Model</TabsTrigger>
+              <TabsTrigger value="history" className="data-[state=active]:bg-zinc-800 rounded-xl text-[10px] font-black uppercase tracking-widest">H2H Logs</TabsTrigger>
+           </TabsList>
 
-        <Tabs defaultValue="reasoning" className="w-full">
-          <TabsList className="w-full grid grid-cols-4 bg-zinc-900/50 p-1 rounded-xl h-12">
-            <TabsTrigger value="reasoning" className="data-[state=active]:bg-zinc-800 rounded-lg text-[10px] font-bold uppercase tracking-widest">Strategy</TabsTrigger>
-            <TabsTrigger value="risk" className="data-[state=active]:bg-zinc-800 rounded-lg text-[10px] font-bold uppercase tracking-widest">Risk Mgmt</TabsTrigger>
-            <TabsTrigger value="micro" className="data-[state=active]:bg-zinc-800 rounded-lg text-[10px] font-bold uppercase tracking-widest">Micro</TabsTrigger>
-            <TabsTrigger value="h2h" className="data-[state=active]:bg-zinc-800 rounded-lg text-[10px] font-bold uppercase tracking-widest">H2H</TabsTrigger>
-          </TabsList>
+           <TabsContent value="strategy" className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                 {[
+                    { label: 'Expected Goals (xG)', value: `${prediction.expected_goals?.home || '--'} vs ${prediction.expected_goals?.away || '--'}`, icon: Target },
+                    { label: 'BTTS Probability', value: `${(prediction.btts_probability || 0 * 100).toFixed(0)}%`, icon: Zap },
+                    { label: 'Over 2.5 Index', value: `${(prediction.over_2_5_probability || 0 * 100).toFixed(0)}%`, icon: TrendingUp },
+                 ].map((stat, i) => (
+                    <div key={i} className="bg-zinc-900/40 border border-zinc-800 p-4 rounded-2xl">
+                       <div className="flex items-center gap-2 mb-2">
+                          <stat.icon className="w-3 h-3 text-zinc-500" />
+                          <span className="text-[9px] font-black text-zinc-600 uppercase tracking-widest">{stat.label}</span>
+                       </div>
+                       <p className="text-xl font-black text-zinc-100">{stat.value}</p>
+                    </div>
+                 ))}
+              </div>
 
-          <TabsContent value="reasoning" className="pt-6">
-             <div className="bg-zinc-900/40 p-4 rounded-xl border border-zinc-800 border-dashed">
-                <p className="text-sm text-zinc-300 leading-relaxed italic font-medium">"{reasoning_summary}"</p>
-             </div>
-          </TabsContent>
+              <div className="bg-zinc-900/40 p-6 rounded-[32px] border border-zinc-800/50 relative overflow-hidden">
+                 <div className="absolute top-0 right-0 p-6 opacity-[0.03]">
+                    <Dna className="w-24 h-24 text-white" />
+                 </div>
+                 <div className="relative z-10">
+                    <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                       <Activity className="w-3 h-3 text-yellow-500" />
+                       Intelligence Narrative
+                    </p>
+                    <p className="text-sm text-zinc-400 font-medium leading-relaxed italic">
+                       "{reasoning_summary}"
+                    </p>
+                    <div className="mt-6 flex flex-wrap gap-2">
+                       {micro_events.map((e, idx) => (
+                          <Badge key={idx} variant="outline" className="text-[9px] font-bold uppercase tracking-widest border-zinc-800 text-zinc-500 py-1 px-3">
+                             {e.type}
+                          </Badge>
+                       ))}
+                    </div>
+                 </div>
+              </div>
+           </TabsContent>
 
-          <TabsContent value="risk" className="pt-6 space-y-4">
-             <div className="flex items-start gap-3 bg-red-950/10 p-4 rounded-xl border border-red-900/20">
-                <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-                <div>
-                   <p className="text-[10px] font-black text-red-500 uppercase tracking-widest mb-1">Primary Threat Vector</p>
-                   <p className="text-sm text-zinc-300 font-medium">{risk_assessment.primary_risk}</p>
-                </div>
-             </div>
-             <div className="flex items-start gap-3 bg-emerald-950/10 p-4 rounded-xl border border-emerald-900/20">
-                <Shield className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
-                <div>
-                   <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1">Safety Buffer ($EV$)</p>
-                   <p className="text-sm text-zinc-300 font-medium">{risk_assessment.safety_buffer}</p>
-                </div>
-             </div>
-          </TabsContent>
+           <TabsContent value="risk" className="space-y-6">
+              <div className="bg-zinc-900/40 border border-zinc-800 p-6 rounded-[32px] relative overflow-hidden">
+                 <div className="flex items-center justify-between mb-6">
+                    <div>
+                       <h4 className="text-md font-black uppercase tracking-tighter">Threat Exposure Analysis</h4>
+                       <p className="text-[9px] font-black text-zinc-600 uppercase tracking-widest">Real-time risk distribution across variables</p>
+                    </div>
+                    <div className={cn("p-2 rounded-xl border", getRiskColor(risk_assessment.level))}>
+                       {risk_assessment.level === 'Low' && <ShieldCheck className="w-5 h-5" />}
+                       {risk_assessment.level === 'Medium' && <AlertCircle className="w-5 h-5" />}
+                       {risk_assessment.level === 'High' && <AlertTriangle className="w-5 h-5" />}
+                    </div>
+                 </div>
 
-          <TabsContent value="micro" className="pt-6">
-             <div className="grid grid-cols-1 gap-3">
-                {micro_events.map((event, idx) => (
-                   <div key={idx} className="flex items-center justify-between bg-zinc-900/50 p-3 rounded-lg border border-zinc-800">
-                      <div className="flex items-center gap-3">
-                         <div className={cn(
-                            "w-2 h-2 rounded-full",
-                            event.likelihood === 'High' ? 'bg-orange-500' : 'bg-zinc-700'
-                         )} />
-                         <span className="text-xs font-bold text-zinc-200">{event.type}</span>
-                      </div>
-                      <Badge variant="secondary" className="text-[9px] uppercase bg-zinc-800 text-zinc-400">{event.likelihood}</Badge>
-                   </div>
-                ))}
-             </div>
-          </TabsContent>
+                 <div className="flex items-center gap-1.5 h-3 w-full mb-8">
+                    {[
+                       { level: 'Low', color: 'bg-emerald-500' },
+                       { level: 'Medium', color: 'bg-yellow-500' },
+                       { level: 'High', color: 'bg-red-500' }
+                    ].map((segment, i) => (
+                       <div key={i} className="flex-1 h-full relative">
+                          <div className={cn(
+                             "w-full h-full rounded-sm transition-all duration-700",
+                             segment.level === risk_assessment.level ? segment.color : "bg-zinc-800/50"
+                          )} />
+                          {segment.level === risk_assessment.level && (
+                             <>
+                                <div className={cn("absolute -bottom-2 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full", segment.color)} />
+                                <div className={cn("absolute inset-0 blur-md opacity-20", segment.color)} />
+                             </>
+                          )}
+                       </div>
+                    ))}
+                 </div>
 
-          <TabsContent value="h2h" className="pt-6">
-             {h2hLoading ? (
-                <div className="space-y-4">
-                   <Skeleton className="h-10 w-full bg-zinc-900" />
-                   <div className="grid grid-cols-3 gap-4">
-                      <Skeleton className="h-20 bg-zinc-900" />
-                      <Skeleton className="h-20 bg-zinc-900" />
-                      <Skeleton className="h-20 bg-zinc-900" />
-                   </div>
-                </div>
-             ) : h2hData ? (
-                <div className="space-y-6">
-                   <div className="grid grid-cols-3 gap-4">
-                      <div className="bg-zinc-900/50 p-4 rounded-xl border border-zinc-800 text-center">
-                         <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">{homeTeam} Wins</p>
-                         <p className="text-2xl font-black text-yellow-500">{h2hData.aggregates.homeTeam.wins}</p>
-                      </div>
-                      <div className="bg-zinc-900/50 p-4 rounded-xl border border-zinc-800 text-center">
-                         <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Draws</p>
-                         <p className="text-2xl font-black text-zinc-100">{h2hData.aggregates.homeTeam.draws || 0}</p>
-                      </div>
-                      <div className="bg-zinc-900/50 p-4 rounded-xl border border-zinc-800 text-center">
-                         <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">{awayTeam} Wins</p>
-                         <p className="text-2xl font-black text-blue-500">{h2hData.aggregates.awayTeam.wins}</p>
-                      </div>
-                   </div>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-zinc-950/50 border border-zinc-900/50 p-5 rounded-2xl group/vector hover:border-red-500/20 transition-all">
+                       <div className="flex items-center gap-2 mb-3">
+                          <Zap className="w-3.5 h-3.5 text-red-500/70" />
+                          <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Primary Vector</span>
+                       </div>
+                       <p className="text-sm font-bold text-zinc-200 leading-tight">{risk_assessment.primary_risk}</p>
+                    </div>
+                    <div className="bg-zinc-950/50 border border-zinc-900/50 p-5 rounded-2xl group/buffer hover:border-emerald-500/20 transition-all">
+                       <div className="flex items-center gap-2 mb-3">
+                          <Shield className="w-3.5 h-3.5 text-emerald-500/70" />
+                          <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Safety Buffer</span>
+                       </div>
+                       <p className="text-sm font-bold text-zinc-200 leading-tight">{risk_assessment.safety_buffer}</p>
+                    </div>
+                 </div>
+              </div>
+              
+              {prediction.trap_game_warning && (
+                 <div className="bg-red-500/5 border border-red-500/20 p-6 rounded-[32px] flex items-start gap-5 relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform duration-700">
+                       <AlertCircle className="w-16 h-16 text-red-500" />
+                    </div>
+                    <div className="w-12 h-12 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
+                       <AlertCircle className="w-6 h-6 text-red-500" />
+                    </div>
+                    <div className="relative z-10">
+                       <h4 className="text-lg font-black uppercase tracking-tighter text-red-500 mb-1">Trap Engagement Protocol</h4>
+                       <p className="text-xs text-zinc-400 font-medium leading-relaxed">
+                          {prediction.trap_game_reason}
+                       </p>
+                    </div>
+                 </div>
+              )}
+           </TabsContent>
 
-                   <div className="space-y-3">
-                      <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-1">Recent Encounters</p>
-                      <div className="space-y-2">
-                         {h2hData.matches.slice(0, 3).map((m: any, idx: number) => (
-                            <div key={idx} className="flex items-center justify-between bg-zinc-900/30 p-3 rounded-lg border border-zinc-800/50">
-                               <div className="flex items-center gap-3 flex-1 overflow-hidden">
-                                  <span className="text-[10px] font-mono text-zinc-600 shrink-0">
-                                     {new Date(m.utcDate).getFullYear()}
-                                  </span>
-                                  <span className="text-xs font-bold text-zinc-400 truncate uppercase tracking-tighter">
-                                     {m.homeTeam.name === homeTeam ? 'Home' : m.homeTeam.name} vs {m.awayTeam.name === awayTeam ? 'Away' : m.awayTeam.name}
-                                  </span>
-                               </div>
-                               <div className="flex items-center gap-2">
-                                  <Badge variant="outline" className="font-mono text-xs border-zinc-800 text-yellow-500">
-                                     {m.score.fullTime.home} - {m.score.fullTime.away}
-                                  </Badge>
-                               </div>
-                            </div>
-                         ))}
-                         {h2hData.matches.length === 0 && (
-                            <div className="text-center py-4 text-zinc-600 bg-zinc-900/20 rounded-xl border border-dashed border-zinc-800">
-                               <p className="text-xs italic">No historical encounter data available.</p>
-                            </div>
-                         )}
-                      </div>
-                   </div>
-                </div>
-             ) : (
-                <div className="text-center py-8 bg-zinc-900/20 rounded-xl border border-dashed border-zinc-800">
-                   <p className="text-xs text-zinc-500 italic">Head-to-Head intelligence unavailable for this fixture.</p>
-                </div>
-             )}
-          </TabsContent>
+           <TabsContent value="modeling" className="space-y-6">
+              <div className="bg-zinc-900/50 p-8 rounded-[38px] border border-zinc-800">
+                 <div className="flex items-center justify-between mb-8">
+                    <div>
+                       <h4 className="text-md font-black uppercase tracking-tighter">Poisson Score Matrix</h4>
+                       <p className="text-[9px] font-black text-zinc-600 uppercase tracking-widest">Quantative scoreline probability distribution</p>
+                    </div>
+                    <BarChart3 className="w-5 h-5 text-zinc-700" />
+                 </div>
+                 
+                 <div className="h-[200px] w-full">
+                    {prediction.poisson_scorelines ? (
+                       <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={prediction.poisson_scorelines}>
+                             <XAxis dataKey="score" fontSize={10} fontFamily="JetBrains Mono" axisLine={false} tickLine={false} stroke="#52525b" />
+                             <Tooltip 
+                                contentStyle={{ backgroundColor: '#000', border: '1px solid #27272a', borderRadius: '8px' }}
+                                labelStyle={{ display: 'none' }}
+                             />
+                             <Bar dataKey="probability" radius={[4, 4, 0, 0]}>
+                                {prediction.poisson_scorelines.map((_, index) => (
+                                   <Cell 
+                                      key={`cell-${index}`} 
+                                      fill={index === 0 ? '#eab308' : '#27272a'} 
+                                      opacity={1 - (index * 0.1)}
+                                   />
+                                ))}
+                             </Bar>
+                          </BarChart>
+                       </ResponsiveContainer>
+                    ) : (
+                       <div className="h-full flex items-center justify-center border-2 border-dashed border-zinc-800 rounded-3xl opacity-30">
+                          <p className="text-xs font-black uppercase tracking-[0.2em]">Quant Node Offline</p>
+                       </div>
+                    )}
+                 </div>
+              </div>
+
+              {prediction.value_bet && (
+                 <div className="bg-emerald-500/10 border border-emerald-500/20 p-6 rounded-[32px]">
+                    <div className="flex items-center gap-3 mb-3">
+                       <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-black">
+                          <TrendingUp className="w-4 h-4" />
+                       </div>
+                       <h4 className="text-xl font-black uppercase tracking-tighter text-emerald-400">Inefficiency Found</h4>
+                    </div>
+                    <p className="text-sm font-medium text-emerald-500/80 leading-relaxed mb-4">
+                       Model detects a significant probability divergence: {prediction.value_explanation}
+                    </p>
+                    <div className="flex items-center gap-4">
+                       <div className="text-center">
+                          <p className="text-[8px] font-black text-zinc-600 uppercase tracking-widest">Recommended Stake</p>
+                          <p className="text-lg font-black text-zinc-100">{prediction.kelly_stake_percent}%</p>
+                       </div>
+                       <div className="h-8 w-px bg-emerald-500/20" />
+                       <div className="text-center">
+                          <p className="text-[8px] font-black text-zinc-600 uppercase tracking-widest">Kelly Factor</p>
+                          <p className="text-lg font-black text-zinc-100">0.25x</p>
+                       </div>
+                    </div>
+                 </div>
+              )}
+           </TabsContent>
+
+           <TabsContent value="history">
+              {h2hLoading ? (
+                 <div className="space-y-4">
+                    <Skeleton className="h-10 w-full bg-zinc-900 rounded-xl" />
+                    <Skeleton className="h-40 w-full bg-zinc-900 rounded-3xl" />
+                 </div>
+              ) : h2hData ? (
+                 <div className="space-y-8">
+                    {/* Visual Win Distribution Bar */}
+                    <div className="bg-zinc-900/40 p-6 rounded-[32px] border border-zinc-900/50">
+                       <div className="flex items-center justify-between mb-4">
+                          <p className="text-[10px] font-black uppercase text-zinc-500 tracking-widest">Global Interaction Ratio</p>
+                          <span className="text-[10px] font-mono text-zinc-600 italic">n={h2hData.aggregates.numberOfMatches}</span>
+                       </div>
+                       
+                       <div className="h-4 w-full flex rounded-full overflow-hidden bg-zinc-950 mb-6">
+                          <div 
+                             className="h-full bg-zinc-100 transition-all duration-1000 ease-out" 
+                             style={{ width: `${(h2hData.aggregates.homeTeam.wins / h2hData.aggregates.numberOfMatches) * 100}%` }} 
+                          />
+                          <div 
+                             className="h-full bg-zinc-700 transition-all duration-1000 ease-out" 
+                             style={{ width: `${(h2hData.aggregates.homeTeam.draws / h2hData.aggregates.numberOfMatches) * 100}%` }} 
+                          />
+                          <div 
+                             className="h-full bg-blue-500 transition-all duration-1000 ease-out" 
+                             style={{ width: `${(h2hData.aggregates.awayTeam.wins / h2hData.aggregates.numberOfMatches) * 100}%` }} 
+                          />
+                       </div>
+
+                       <div className="grid grid-cols-3 gap-3">
+                          {[
+                             { label: 'Host Dominance', value: h2hData.aggregates.homeTeam.wins, color: 'bg-zinc-100' },
+                             { label: 'Stalemate', value: h2hData.aggregates.homeTeam.draws || 0, color: 'bg-zinc-700' },
+                             { label: 'Assailant Superiority', value: h2hData.aggregates.awayTeam.wins, color: 'bg-blue-500' },
+                          ].map((s, i) => (
+                             <div key={i} className="flex flex-col">
+                                <div className="flex items-center gap-1.5 mb-1">
+                                   <div className={cn("w-1.5 h-1.5 rounded-full", s.color)} />
+                                   <span className="text-[8px] font-black uppercase text-zinc-500 tracking-widest">{s.label}</span>
+                                </div>
+                                <p className="text-xl font-black text-zinc-100 leading-none">{s.value}</p>
+                             </div>
+                          ))}
+                       </div>
+                    </div>
+
+                    <div className="space-y-3">
+                       <div className="flex items-center gap-2 px-1">
+                          <History className="w-3 h-3 text-zinc-600" />
+                          <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-600">Archival Log History</h4>
+                       </div>
+                       
+                       <div className="space-y-2">
+                          {h2hData.matches.slice(0, 5).map((m: any, i: number) => {
+                             const isHomeWin = m.score.winner === 'HOME_TEAM';
+                             const isAwayWin = m.score.winner === 'AWAY_TEAM';
+                             const isDraw = m.score.winner === 'DRAW';
+
+                             return (
+                                <div key={i} className="flex items-center gap-4 bg-zinc-950/50 border border-zinc-900/50 p-4 rounded-2xl group/log hover:border-zinc-800 transition-all">
+                                   <div className={cn(
+                                      "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-[10px] font-black",
+                                      isHomeWin ? "bg-zinc-100 text-black shadow-[0_0_10px_rgba(255,255,255,0.1)]" : 
+                                      isAwayWin ? "bg-blue-600 text-white shadow-[0_0_10px_rgba(37,99,235,0.2)]" : 
+                                      "bg-zinc-900 text-zinc-500"
+                                   )}>
+                                      {isHomeWin ? 'W' : isAwayWin ? 'L' : 'D'}
+                                   </div>
+                                   
+                                   <div className="flex-1 flex items-center justify-between min-w-0">
+                                      <div className="flex flex-col">
+                                         <div className="flex items-center gap-2">
+                                            <span className="text-xs font-black text-zinc-100 uppercase tracking-tighter truncate max-w-[80px]">
+                                               {m.homeTeam.name.split(' ').slice(-1)}
+                                            </span>
+                                            <span className="text-[10px] font-mono text-zinc-700">VS</span>
+                                            <span className="text-xs font-black text-zinc-100 uppercase tracking-tighter truncate max-w-[80px]">
+                                               {m.awayTeam.name.split(' ').slice(-1)}
+                                            </span>
+                                         </div>
+                                         <span className="text-[8px] font-black text-zinc-700 uppercase tracking-widest mt-0.5">
+                                            {m.competition.name}
+                                         </span>
+                                      </div>
+
+                                      <div className="flex flex-col items-end">
+                                         <div className="bg-zinc-900 px-3 py-1 rounded-lg border border-zinc-800 font-mono text-xs font-black text-zinc-300">
+                                            {m.score.fullTime.home}-{m.score.fullTime.away}
+                                         </div>
+                                         <span className="text-[8px] font-mono text-zinc-700 mt-1 uppercase">
+                                            {new Date(m.utcDate).getFullYear()} SERIES
+                                         </span>
+                                      </div>
+                                   </div>
+                                </div>
+                             );
+                          })}
+                       </div>
+                    </div>
+                 </div>
+              ) : (
+                 <div className="p-24 text-center border-2 border-dashed border-zinc-900 rounded-[32px] opacity-30">
+                    <History className="w-12 h-12 mx-auto mb-4" />
+                    <p className="font-black uppercase tracking-widest text-xs">Engagement History Void</p>
+                 </div>
+              )}
+           </TabsContent>
         </Tabs>
       </CardContent>
 
-      <CardFooter className="bg-zinc-900/20 py-4 px-6 border-t border-zinc-900 flex justify-between items-center">
-         <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-2 text-[10px] font-mono text-zinc-600">
-               <Activity className="w-3 h-3" />
-               <span>Volatility Engine: ACTIVE</span>
+      <CardFooter className="bg-black/40 py-6 px-10 border-t border-zinc-900 flex flex-col md:flex-row justify-between items-center gap-6">
+         <div className="flex flex-col gap-1.5 order-2 md:order-1 items-center md:items-start text-[9px] font-black uppercase tracking-[0.2em] text-zinc-700">
+            <div className="flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+              <span>Analytic Matrix Verified</span>
             </div>
-            <div className="flex items-center gap-2 text-[10px] font-mono text-zinc-600">
+            <div className="flex items-center gap-2">
                <Info className="w-3 h-3" />
-               <span>Model: PRO-V2-BETA</span>
+               <span>Internal ID: Fixture-{match.id}</span>
             </div>
          </div>
-         <div className="flex items-center gap-2">
+         
+         <div className="flex items-center gap-3 order-1 md:order-2 w-full md:w-auto">
             <button 
               onClick={onViewDetails}
-              className="bg-zinc-900 hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300 text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-xl border border-zinc-800 hover:border-zinc-700 transition-all flex items-center gap-2"
+              className="flex-1 md:flex-none h-12 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 font-black uppercase text-[10px] tracking-widest px-8 rounded-2xl border border-zinc-800 transition-all"
             >
-              <Info className="w-3 h-3" />
-              Inspect Fixture
+              Tactical Roster
             </button>
             <button 
               onClick={onQueryAgent}
-              className="bg-zinc-800 hover:bg-yellow-500 hover:text-black text-zinc-400 text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-xl border border-zinc-700 hover:border-yellow-500 transition-all flex items-center gap-2 shadow-sm"
+              className="flex-1 md:flex-none h-12 bg-yellow-500 hover:bg-yellow-400 text-black font-black uppercase text-[10px] tracking-widest px-8 rounded-2xl shadow-[0_0_20px_rgba(234,179,8,0.2)] transition-all flex items-center justify-center gap-2"
             >
-              <MessageSquare className="w-3 h-3" />
-              Deep Scan
+              <BrainCircuit className="w-4 h-4" />
+              Intelligence Node
             </button>
          </div>
       </CardFooter>

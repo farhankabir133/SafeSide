@@ -247,8 +247,107 @@ async function startServer() {
       const data = await response.json();
       res.json(data);
     } catch (error: any) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      res.status(500).json({ error: errorMessage || "Failed to fetch H2H data" });
+      res.status(500).json({ error: error.message || "Failed to fetch H2H data" });
+    }
+  });
+
+  // League Standings Proxy
+  app.get("/api/leagues/:id/standings", async (req, res) => {
+    try {
+      let apiKey = process.env.FOOTBALL_API_KEY || process.env.FOOTBALL_DATA_API_KEY;
+      const { id } = req.params;
+      
+      const placeholders = ["YOUR_KEY_HERE", "MY_API_KEY", "FOOTBALL_API_KEY", ""];
+      if (apiKey && placeholders.includes(apiKey.trim())) {
+        apiKey = undefined;
+      }
+
+      if (!apiKey) {
+        // Provide realistic mock standings based on league ID
+        const mockStandings: Record<string, any> = {
+          "2021": [ // Premier League
+            { position: 1, team: { id: 61, name: "Chelsea FC", crest: "https://crests.football-data.org/61.png" }, playedGames: 28, won: 18, draw: 6, lost: 4, points: 60, goalsFor: 52, goalsAgainst: 24, goalDifference: 28 },
+            { position: 2, team: { id: 65, name: "Manchester City FC", crest: "https://crests.football-data.org/65.png" }, playedGames: 28, won: 17, draw: 7, lost: 4, points: 58, goalsFor: 58, goalsAgainst: 26, goalDifference: 32 },
+            { position: 3, team: { id: 64, name: "Liverpool FC", crest: "https://crests.football-data.org/64.png" }, playedGames: 28, won: 17, draw: 5, lost: 6, points: 56, goalsFor: 55, goalsAgainst: 28, goalDifference: 27 },
+            { position: 4, team: { id: 57, name: "Arsenal FC", crest: "https://crests.football-data.org/57.png" }, playedGames: 28, won: 16, draw: 6, lost: 6, points: 54, goalsFor: 50, goalsAgainst: 30, goalDifference: 20 },
+            { position: 5, team: { id: 73, name: "Tottenham Hotspur FC", crest: "https://crests.football-data.org/73.png" }, playedGames: 28, won: 14, draw: 5, lost: 9, points: 47, goalsFor: 44, goalsAgainst: 38, goalDifference: 6 }
+          ],
+          "2014": [ // La Liga
+            { position: 1, team: { id: 86, name: "Real Madrid CF", crest: "https://crests.football-data.org/86.png" }, playedGames: 27, won: 20, draw: 6, lost: 1, points: 66, goalsFor: 54, goalsAgainst: 18, goalDifference: 36 },
+            { position: 2, team: { id: 78, name: "Club Atlético de Madrid", crest: "https://crests.football-data.org/78.png" }, playedGames: 27, won: 17, draw: 4, lost: 6, points: 55, goalsFor: 48, goalsAgainst: 24, goalDifference: 24 },
+            { position: 3, team: { id: 81, name: "FC Barcelona", crest: "https://crests.football-data.org/81.png" }, playedGames: 27, won: 16, draw: 6, lost: 5, points: 54, goalsFor: 51, goalsAgainst: 29, goalDifference: 22 },
+            { position: 4, team: { id: 298, name: "Girona FC", crest: "https://crests.football-data.org/298.png" }, playedGames: 27, won: 16, draw: 5, lost: 6, points: 53, goalsFor: 53, goalsAgainst: 32, goalDifference: 21 }
+          ],
+          "default": [
+            { position: 1, team: { id: 1, name: "Simulated Leader", crest: "" }, playedGames: 20, won: 15, draw: 3, lost: 2, points: 48, goalsFor: 40, goalsAgainst: 15, goalDifference: 25 },
+            { position: 2, team: { id: 2, name: "Challenger Node", crest: "" }, playedGames: 20, won: 12, draw: 4, lost: 4, points: 40, goalsFor: 35, goalsAgainst: 20, goalDifference: 15 }
+          ]
+        };
+
+        return res.json({ 
+          standings: [
+            { table: mockStandings[id] || mockStandings["default"] }
+          ] 
+        });
+      }
+
+      const response = await fetch(`https://api.football-data.org/v4/competitions/${id}/standings`, {
+        headers: { "X-Auth-Token": apiKey }
+      });
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+
+      res.json(await response.json());
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // League Scorers Proxy
+  app.get("/api/leagues/:id/scorers", async (req, res) => {
+    try {
+      let apiKey = process.env.FOOTBALL_API_KEY || process.env.FOOTBALL_DATA_API_KEY;
+      const { id } = req.params;
+      if (!apiKey || apiKey.includes("YOUR_KEY")) return res.json({ scorers: [] });
+      const response = await fetch(`https://api.football-data.org/v4/competitions/${id}/scorers`, {
+        headers: { "X-Auth-Token": apiKey }
+      });
+      res.json(await response.json());
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Team Detail Proxy
+  app.get("/api/teams/:id", async (req, res) => {
+    try {
+      let apiKey = process.env.FOOTBALL_API_KEY || process.env.FOOTBALL_DATA_API_KEY;
+      const { id } = req.params;
+      if (!apiKey || apiKey.includes("YOUR_KEY")) return res.json({ name: "Mock Team", crest: "" });
+      const response = await fetch(`https://api.football-data.org/v4/teams/${id}`, {
+        headers: { "X-Auth-Token": apiKey }
+      });
+      res.json(await response.json());
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Team Matches Proxy
+  app.get("/api/teams/:id/matches", async (req, res) => {
+    try {
+      let apiKey = process.env.FOOTBALL_API_KEY || process.env.FOOTBALL_DATA_API_KEY;
+      const { id } = req.params;
+      const { status } = req.query;
+      if (!apiKey || apiKey.includes("YOUR_KEY")) return res.json({ matches: [] });
+      const response = await fetch(`https://api.football-data.org/v4/teams/${id}/matches?status=${status || 'SCHEDULED'}`, {
+        headers: { "X-Auth-Token": apiKey }
+      });
+      res.json(await response.json());
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
     }
   });
 

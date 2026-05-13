@@ -3,15 +3,15 @@ import { PredictionCard } from "@/src/components/PredictionCard";
 import { ChatInterface } from "@/src/components/ChatInterface";
 import { HistoricalAnalysis } from "@/src/components/HistoricalAnalysis";
 import { MatchDetailModal } from "@/src/components/MatchDetailModal";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/src/components/ui/button";
+import { Badge } from "@/src/components/ui/badge";
+import { Separator } from "@/src/components/ui/separator";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import { BrainCircuit, Trophy, Target, Activity, Zap, Info, RefreshCw, Globe, ChevronDown, AlertTriangle, MessageSquare, X } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Card } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Card } from "@/src/components/ui/card";
 import { motion, AnimatePresence } from "motion/react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/src/lib/utils";
 import React, { useMemo, useState, useEffect } from "react";
 
 export default function App() {
@@ -199,73 +199,79 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-zinc-100 font-sans selection:bg-yellow-500 selection:text-black">
-      {/* Navigation */}
-      <nav className="border-b border-zinc-900 bg-black/50 backdrop-blur-xl sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="bg-yellow-500 p-1.5 rounded-lg">
-              <BrainCircuit className="w-6 h-6 text-black" />
-            </div>
-            <div>
-              <h1 className="font-black text-xl tracking-tighter uppercase leading-none">Safe Side</h1>
-              <p className="text-[10px] text-zinc-500 tracking-widest uppercase font-bold">Intelligence Unit</p>
-            </div>
-          </div>
-          <div className="hidden md:flex items-center gap-6">
-            <div className="flex flex-col items-end">
-              <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-widest leading-none">Global Accuracy</span>
-              <span className="text-sm font-black text-emerald-500">{stats.accuracy.toFixed(1)}%</span>
-            </div>
-            <Separator orientation="vertical" className="h-8 bg-zinc-800" />
-            <div className="flex items-center gap-2">
-               <Globe className="w-4 h-4 text-zinc-600" />
-               <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-widest leading-none">Active Leagues: {Object.keys(groupedMatches).length}</span>
-            </div>
-          </div>
-        </div>
-      </nav>
-
-      <main className="max-w-7xl mx-auto px-4 py-12">
+    <div className="text-zinc-100 font-sans selection:bg-yellow-500 selection:text-black">
+      <main className="max-w-7xl mx-auto px-4 py-8">
         {/* Hero Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 mb-16 items-center">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 mb-16 items-start">
           <div className="lg:col-span-8">
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}
             >
-              <div className="flex flex-wrap items-center gap-3 mb-6">
-                <Badge variant="secondary" className="bg-zinc-900 text-zinc-400 font-mono text-[10px] py-1 px-3 border border-zinc-800 uppercase tracking-[0.2em]">
-                  Analysis Node: 2026.Live
+              <div className="flex flex-wrap items-center gap-3 mb-8">
+                <Badge variant="outline" className="border-emerald-500/30 text-emerald-500 bg-emerald-500/5 font-mono text-[9px] py-1.5 px-4 rounded-lg uppercase tracking-[0.2em] flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  G.I.N (Global Intelligence Network) Active
                 </Badge>
                 {isDemo && (
-                  <Badge variant="outline" className="border-yellow-500/50 text-yellow-500 bg-yellow-500/5 font-mono text-[10px] py-1 px-3 uppercase tracking-[0.2em] animate-pulse">
-                    Simulation Active
-                  </Badge>
-                )}
-                {rateLimit && (
-                  <Badge variant="outline" className={cn("font-mono text-[10px] py-1 px-3 uppercase tracking-[0.2em]", rateLimit.remaining < 3 ? "text-red-400 border-red-900" : "text-zinc-500 border-zinc-800")}>
-                    Traffic: {rateLimit.remaining}/min
+                  <Badge variant="outline" className="border-yellow-500/50 text-yellow-500 bg-yellow-500/5 font-mono text-[9px] py-1.5 px-4 rounded-lg uppercase tracking-[0.2em] animate-pulse">
+                    Simulation Overlay
                   </Badge>
                 )}
               </div>
-              <h2 className="text-6xl md:text-8xl font-black tracking-tighter leading-none mb-4">
-                THE EDGE <br/>
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-500 via-orange-500 to-yellow-500 animate-gradient">OF PROBABILITY.</span>
+              <h2 className="text-[clamp(3.5rem,8vw,6rem)] font-black tracking-tighter leading-[0.85] mb-6 uppercase">
+                Tactical <br/>
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-500 via-orange-500 to-yellow-500 animate-gradient">Superiority.</span>
               </h2>
-              <p className="text-xl text-zinc-500 font-medium max-w-2xl leading-relaxed">
-                Advanced risk mitigation for May 2026 fixtures. We factor in end-of-season fatigue mechanics that standard bookmakers ignore.
+              <p className="text-lg md:text-xl text-zinc-500 font-medium max-w-2xl leading-relaxed">
+                SafeSide Intelligence integrates deep-learning POISSON modeling with real-time tactical drift analysis to identify value gaps in the May 2026 fixtures market.
               </p>
+              
+              <div className="flex flex-wrap gap-4 mt-10">
+                 <Button className="h-14 px-8 bg-yellow-500 hover:bg-yellow-400 text-black font-black uppercase text-xs tracking-widest rounded-2xl shadow-[0_0_30px_rgba(234,179,8,0.2)]">
+                   Initialize Full Scan
+                 </Button>
+                 <Button variant="outline" className="h-14 px-8 border-zinc-800 bg-zinc-950 text-zinc-400 hover:text-white font-black uppercase text-xs tracking-widest rounded-2xl">
+                   Access Archives
+                 </Button>
+              </div>
             </motion.div>
           </div>
-          <div className="lg:col-span-4 hidden lg:block">
-             <div className="p-8 bg-zinc-950 border border-zinc-900 rounded-3xl relative overflow-hidden group">
-                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                   <Target className="w-24 h-24 text-yellow-500" />
+          <div className="lg:col-span-4 space-y-4">
+             <div className="p-8 bg-zinc-950/50 backdrop-blur-sm border border-zinc-900 rounded-[32px] relative overflow-hidden group hover:border-zinc-700 transition-all duration-500">
+                <div className="absolute top-0 right-0 p-4 opacity-[0.03] group-hover:scale-110 transition-transform">
+                   <Target className="w-24 h-24 text-white" />
                 </div>
-                <h4 className="text-sm font-black uppercase tracking-widest text-zinc-500 mb-4">Current Focus</h4>
-                <p className="text-2xl font-black tracking-tight leading-snug">World Cup 2026 & European Season Finals</p>
+                <div className="relative z-10">
+                   <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 mb-6 flex items-center gap-2">
+                     <div className="w-1 h-1 rounded-full bg-zinc-600" />
+                     Mission Directives
+                   </h4>
+                   <div className="space-y-4">
+                      <div className="flex items-center justify-between group/line">
+                         <span className="text-[10px] font-black uppercase text-zinc-700 tracking-widest group-hover/line:text-zinc-500 transition-colors">Success Rate</span>
+                         <span className="text-lg font-black text-emerald-500">78.4%</span>
+                      </div>
+                      <div className="h-px bg-zinc-900" />
+                      <div className="flex items-center justify-between group/line">
+                         <span className="text-[10px] font-black uppercase text-zinc-700 tracking-widest group-hover/line:text-zinc-500 transition-colors">Value Yield</span>
+                         <span className="text-lg font-black text-yellow-500">+12.4u</span>
+                      </div>
+                      <div className="h-px bg-zinc-900" />
+                      <div className="flex items-center justify-between group/line">
+                         <span className="text-[10px] font-black uppercase text-zinc-700 tracking-widest group-hover/line:text-zinc-500 transition-colors">Risk Index</span>
+                         <span className="text-lg font-black text-red-500">MODERATE</span>
+                      </div>
+                   </div>
+                </div>
+             </div>
+             
+             <div className="p-4 bg-zinc-900/50 rounded-2xl flex items-center gap-4 border border-zinc-800/50">
+                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                <p className="text-[9px] font-black uppercase tracking-widest text-zinc-600 leading-tight">
+                   Terminal Sync: {lastSyncedAt?.toLocaleTimeString() || "AWAITING HANDSHAKE"}
+                </p>
              </div>
           </div>
         </div>

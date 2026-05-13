@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export interface MicroEvent {
   type: string;
@@ -13,23 +13,32 @@ export interface MatchAnalysis {
     scoreline: string;
     win_probability: { home: number; away: number; draw: number };
     confidence_score: number;
+    expected_goals?: { home: number; away: number };
+    btts_probability?: number;
+    over_2_5_probability?: number;
+    kelly_stake_percent?: number;
+    value_bet?: boolean;
+    value_explanation?: string;
+    trap_game_warning?: boolean;
+    trap_game_reason?: string;
+    poisson_scorelines?: Array<{ score: string; probability: number }>;
   };
   risk_assessment: {
     level: 'Low' | 'Medium' | 'High';
     primary_risk: string;
     safety_buffer: string;
+    fatigue_index?: { home: number; away: number };
   };
+  form_analysis?: { home: string; away: string };
   micro_events: MicroEvent[];
   reasoning_summary: string;
 }
 
-// Global Gemini client configured for the frontend
-// AI Studio injects process.env.GEMINI_API_KEY at runtime for previews
-export const ai = new GoogleGenAI({ 
-  apiKey: process.env.GEMINI_API_KEY as string 
-});
+export const MODEL_ID = "gemini-2.0-flash";
 
-export const MODEL_ID = "gemini-3-flash-preview";
+// Global Gemini client configured for the frontend
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY as string);
+export const ai = genAI.getGenerativeModel({ model: MODEL_ID });
 
 export async function analyzeMatch(matchData: any, h2hData: any): Promise<MatchAnalysis> {
   const h2hSummary = h2hData ? `
@@ -40,72 +49,61 @@ ${matchData.awayTeam.name} Wins: ${h2hData.aggregates.awayTeam.wins}
 Recent Result: ${h2hData.matches && h2hData.matches[0] ? h2hData.matches[0].homeTeam.name + ' ' + h2hData.matches[0].score.fullTime.home + '-' + h2hData.matches[0].score.fullTime.away + ' ' + h2hData.matches[0].awayTeam.name : 'N/A' }
 ` : "Head-to-Head data not available.";
 
-  const prompt = `Role: Senior Predictive Sports Analyst and Risk Manager.
-Context: May 2026.
+  const prompt = `Role: Professional Tactical Analyst & Probabilistic Modeler.
+Task: Perform a deep-scan intelligence report for the following engagement.
 
-Analyze this match data and provide a "Safe Side" forecast:
-Match: ${matchData.homeTeam.name} vs ${matchData.awayTeam.name}
+Engagement: ${matchData.homeTeam.name} vs ${matchData.awayTeam.name}
 Competition: ${matchData.competition.name}
 ${h2hSummary}
 
-Logic Constraints:
-- Safety First: If volatility is high, output "Low Confidence" and "No Bet".
-- Expected Value: Only suggest a "Safe Side" if probability > 70%.
-- Goal Lines: Always assess the likelihood of "Under 2.5 Goals" vs "Over 2.5 Goals".`;
+Analysis Protocol:
+1. Apply Poisson Distribution modeling for scoreline probabilities.
+2. Factor in fatigue mechanics based on match density (if available).
+3. Identify 'Value Bets' where probabilities exceed market expectations.
+4. Flag 'Trap Games' where heavy favorites are at risk due to micro-events.
 
-  const response = await ai.models.generateContent({
-    model: MODEL_ID,
-    contents: prompt,
-    config: {
+Output Schema (Strict JSON):
+{
+  "match_id": "${matchData.id}",
+  "prediction": {
+    "safe_side": "Team Name or Draw",
+    "scoreline": "X-X",
+    "win_probability": { "home": 0.0, "away": 0.0, "draw": 0.0 },
+    "confidence_score": 0-100,
+    "expected_goals": { "home": 0.0, "away": 0.0 },
+    "btts_probability": 0.0,
+    "over_2_5_probability": 0.0,
+    "kelly_stake_percent": 0.0,
+    "value_bet": boolean,
+    "value_explanation": "string",
+    "trap_game_warning": boolean,
+    "trap_game_reason": "string",
+    "poisson_scorelines": [{"score": "1-0", "probability": 0.15}]
+  },
+  "risk_assessment": {
+    "level": "Low/Medium/High",
+    "primary_risk": "string",
+    "safety_buffer": "string",
+    "fatigue_index": { "home": 0-10, "away": 0-10 }
+  },
+  "form_analysis": { "home": "string", "away": "string" },
+  "micro_events": [
+    { "type": "Red Card", "likelihood": "High/Med/Low", "reason": "string" }
+  ],
+  "reasoning_summary": "string"
+}`;
+
+  const response = await ai.generateContent({
+    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    generationConfig: {
       responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          match_id: { type: Type.STRING },
-          prediction: {
-            type: Type.OBJECT,
-            properties: {
-              safe_side: { type: Type.STRING },
-              scoreline: { type: Type.STRING },
-              win_probability: {
-                type: Type.OBJECT,
-                properties: {
-                  home: { type: Type.NUMBER },
-                  away: { type: Type.NUMBER },
-                  draw: { type: Type.NUMBER }
-                }
-              },
-              confidence_score: { type: Type.NUMBER }
-            }
-          },
-          risk_assessment: {
-            type: Type.OBJECT,
-            properties: {
-              level: { type: Type.STRING },
-              primary_risk: { type: Type.STRING },
-              safety_buffer: { type: Type.STRING }
-            }
-          },
-          micro_events: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                type: { type: Type.STRING },
-                likelihood: { type: Type.STRING },
-                reason: { type: Type.STRING }
-              }
-            }
-          },
-          reasoning_summary: { type: Type.STRING }
-        }
-      }
     }
   });
 
   try {
-    return JSON.parse(response.text);
+    const text = response.response.text();
+    return JSON.parse(text) as MatchAnalysis;
   } catch (e) {
-    throw new Error("Failed to parse analysis result from AI.");
+    throw new Error("Failed to parse tactical analysis node output.");
   }
 }

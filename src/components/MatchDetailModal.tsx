@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, MapPin, User, Trophy, Calendar, Info, Users, History, Activity, BarChart3, Target, ShieldAlert } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
-import { Progress } from '@/components/ui/progress';
-import { cn } from '@/lib/utils';
+import { Button } from '@/src/components/ui/button';
+import { Badge } from '@/src/components/ui/badge';
+import { ScrollArea } from '@/src/components/ui/scroll-area';
+import { Separator } from '@/src/components/ui/separator';
+import { Progress } from '@/src/components/ui/progress';
+import { cn } from '@/src/lib/utils';
 
 interface MatchDetailModalProps {
   isOpen: boolean;
@@ -248,26 +248,77 @@ export const MatchDetailModal: React.FC<MatchDetailModalProps> = ({ isOpen, onCl
                   <Separator className="bg-zinc-900" />
 
                   {/* H2H Statistics */}
-                  <div className="space-y-6">
-                    <div className="flex items-center gap-3">
-                       <History className="w-5 h-5 text-zinc-400" />
-                       <h3 className="text-lg font-black uppercase tracking-widest">Legacy Interaction Feed</h3>
+                  <div className="space-y-8">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                         <History className="w-5 h-5 text-zinc-400" />
+                         <h3 className="text-lg font-black uppercase tracking-widest">Legacy Interaction Feed</h3>
+                      </div>
+                      <Badge variant="outline" className="border-zinc-800 text-[10px] uppercase font-black tracking-widest text-zinc-500">
+                        Total: {h2hData?.aggregates?.numberOfMatches ?? 0} Engagements
+                      </Badge>
                     </div>
 
                     {h2hData ? (
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div className="bg-emerald-500/5 border border-emerald-500/20 p-6 rounded-3xl text-center group hover:bg-emerald-500/10 transition-all">
-                          <span className="text-3xl font-black text-emerald-500 leading-none">{h2hData.aggregates?.homeTeam?.wins ?? 0}</span>
-                          <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mt-2">{matchDetails.homeTeam?.name} Wins</p>
+                      <div className="space-y-6">
+                        {/* Win Distribution */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                          <div className="bg-emerald-500/5 border border-emerald-500/20 p-6 rounded-3xl text-center group hover:bg-emerald-500/10 transition-all">
+                            <span className="text-4xl font-black text-emerald-500 leading-none">{h2hData.aggregates?.homeTeam?.wins ?? 0}</span>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mt-2">{matchDetails.homeTeam?.name} VICTORIES</p>
+                          </div>
+                          <div className="bg-zinc-900/30 border border-zinc-800/50 p-6 rounded-3xl text-center">
+                            <span className="text-4xl font-black text-zinc-400 leading-none">{h2hData.aggregates?.homeTeam?.draws ?? 0}</span>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mt-2">STALEMATES</p>
+                          </div>
+                          <div className="bg-blue-500/5 border border-blue-500/20 p-6 rounded-3xl text-center group hover:bg-blue-500/10 transition-all">
+                            <span className="text-4xl font-black text-blue-500 leading-none">{h2hData.aggregates?.awayTeam?.wins ?? 0}</span>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mt-2">{matchDetails.awayTeam?.name} VICTORIES</p>
+                          </div>
                         </div>
-                        <div className="bg-zinc-900/50 border border-zinc-800 p-6 rounded-3xl text-center">
-                          <span className="text-3xl font-black text-zinc-400 leading-none">{h2hData.aggregates?.homeTeam?.draws ?? 0}</span>
-                          <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mt-2">Draws</p>
-                        </div>
-                        <div className="bg-red-500/5 border border-red-500/20 p-6 rounded-3xl text-center group hover:bg-red-500/10 transition-all">
-                          <span className="text-3xl font-black text-red-500 leading-none">{h2hData.aggregates?.awayTeam?.wins ?? 0}</span>
-                          <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mt-2">{matchDetails.awayTeam?.name} Wins</p>
-                        </div>
+
+                        {/* Highlighted Most Recent Encounter */}
+                        {h2hData.matches && h2hData.matches.length > 0 && (
+                          <div className="relative overflow-hidden bg-zinc-900/30 border border-zinc-800 p-8 rounded-[40px] group">
+                            <div className="absolute top-0 right-0 p-4">
+                              <Badge className="bg-yellow-500 text-black font-black uppercase text-[8px] tracking-widest">Latest Engagement</Badge>
+                            </div>
+                            <div className="flex flex-col items-center gap-6">
+                              <div className="flex items-center gap-2 text-zinc-600">
+                                <Calendar className="w-3.5 h-3.5" />
+                                <span className="text-[10px] font-black uppercase tracking-widest">
+                                  {new Date(h2hData.matches[0].utcDate).toLocaleDateString(undefined, { 
+                                    weekday: 'long', 
+                                    year: 'numeric', 
+                                    month: 'long', 
+                                    day: 'numeric' 
+                                  })}
+                                </span>
+                              </div>
+                              
+                              <div className="flex items-center justify-center gap-8 w-full">
+                                <div className="flex-1 text-right">
+                                  <span className="text-lg font-black uppercase tracking-tighter truncate block">{h2hData.matches[0].homeTeam.name}</span>
+                                </div>
+                                <div className="flex flex-col items-center gap-1">
+                                  <div className="text-3xl font-black font-mono tracking-tighter bg-zinc-950 px-6 py-3 rounded-2xl border border-zinc-800 shadow-2xl group-hover:scale-105 transition-transform duration-500">
+                                    {h2hData.matches[0].score?.fullTime?.home} - {h2hData.matches[0].score?.fullTime?.away}
+                                  </div>
+                                </div>
+                                <div className="flex-1 text-left">
+                                  <span className="text-lg font-black uppercase tracking-tighter truncate block">{h2hData.matches[0].awayTeam.name}</span>
+                                </div>
+                              </div>
+                              
+                              <div className="flex items-center gap-2">
+                                <Trophy className="w-3 h-3 text-zinc-500" />
+                                <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">
+                                  {h2hData.matches[0].competition?.name || "Official Competition"}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div className="p-12 text-center border-2 border-dashed border-zinc-900 rounded-3xl">
@@ -277,14 +328,14 @@ export const MatchDetailModal: React.FC<MatchDetailModalProps> = ({ isOpen, onCl
                   </div>
 
                   {/* Recent History List */}
-                  {h2hData?.matches?.length > 0 && (
+                  {h2hData?.matches?.length > 1 && (
                     <div className="space-y-6">
                       <div className="flex items-center gap-2">
                         <Target className="w-4 h-4 text-zinc-500" />
-                        <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">Recent Engagement Logs</h4>
+                        <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">Historical Engagement Logs</h4>
                       </div>
                       <div className="space-y-2">
-                        {h2hData.matches.slice(0, 5).map((m: any) => (
+                        {h2hData.matches.slice(1, 6).map((m: any) => (
                           <div key={m.id} className="bg-zinc-950 border border-zinc-900/50 p-4 rounded-2xl flex items-center justify-between group hover:border-zinc-800 transition-all">
                             <div className="flex items-center gap-3 w-28">
                               <Calendar className="w-3 h-3 text-zinc-700" />
