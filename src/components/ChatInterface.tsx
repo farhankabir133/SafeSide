@@ -1,10 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Button } from "@/src/components/ui/button";
-import { Input } from "@/src/components/ui/input";
-import { ScrollArea } from "@/src/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { BrainCircuit, Send, User, Bot, Loader2, X } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { cn } from "@/src/lib/utils";
+import { cn } from "@/lib/utils";
 import { ai, MODEL_ID } from "@/src/services/geminiService";
 
 interface Message {
@@ -26,11 +25,21 @@ export function ChatInterface({ matches, selectedMatch, onClearSelected }: ChatI
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+  const scrollToBottom = () => {
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      const scrollContainer = scrollRef.current;
+      scrollContainer.scrollTo({
+        top: scrollContainer.scrollHeight,
+        behavior: 'smooth'
+      });
     }
-  }, [messages]);
+  };
+
+  useEffect(() => {
+    // Small delay to ensure content is rendered before scrolling
+    const timer = setTimeout(scrollToBottom, 100);
+    return () => clearTimeout(timer);
+  }, [messages, loading]);
 
   const handleSend = async () => {
     if (!input.trim() || loading) return;
@@ -54,11 +63,17 @@ export function ChatInterface({ matches, selectedMatch, onClearSelected }: ChatI
         }
       }
 
-      const chat = ai.startChat({
-        history: messages.map(m => ({
+      // Filter history: Gemini requires the first message to be 'user'
+      // We also exclude the initial welcome message from the history sent to the model
+      const chatHistory = messages
+        .filter((m, idx) => !(idx === 0 && m.role === 'model'))
+        .map(m => ({
           role: m.role,
           parts: [{ text: m.content }]
-        }))
+        }));
+
+      const chat = ai.startChat({
+        history: chatHistory
       });
 
       const matchesSummary = matches && matches.length > 0 
@@ -138,7 +153,10 @@ ${matchesSummary}`;
         </AnimatePresence>
       </div>
 
-      <ScrollArea className="flex-1 p-6" ref={scrollRef}>
+      <div 
+        className="flex-1 overflow-y-auto p-6 scroll-smooth custom-scrollbar" 
+        ref={scrollRef}
+      >
         <div className="space-y-6">
           <AnimatePresence initial={false}>
             {messages.map((m, i) => (
@@ -186,7 +204,7 @@ ${matchesSummary}`;
             </motion.div>
           )}
         </div>
-      </ScrollArea>
+      </div>
 
       <div className="p-4 border-t border-zinc-900 bg-zinc-900/10">
         <form 

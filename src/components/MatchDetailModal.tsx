@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate, Link } from 'react-router-dom';
-import { X, MapPin, User, Trophy, Calendar, Info, Users, History, Activity, BarChart3, Target, ShieldAlert, ExternalLink } from 'lucide-react';
-import { Button } from '@/src/components/ui/button';
-import { Badge } from '@/src/components/ui/badge';
-import { ScrollArea } from '@/src/components/ui/scroll-area';
-import { Separator } from '@/src/components/ui/separator';
-import { Progress } from '@/src/components/ui/progress';
-import { cn } from '@/src/lib/utils';
+import { X, MapPin, User, Trophy, Calendar, Info, Users, History, Activity, BarChart3, Target, ShieldAlert, ExternalLink, BrainCircuit } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
+import { Progress } from '@/components/ui/progress';
+import { cn } from '@/lib/utils';
 
 interface MatchDetailModalProps {
   isOpen: boolean;
@@ -42,6 +42,8 @@ const StatRow: React.FC<{ label: string; home: number; away: number; unit?: stri
   );
 };
 
+import { VolatilityGauge } from '@/src/components/CommandCenter/VolatilityGauge';
+
 export const MatchDetailModal: React.FC<MatchDetailModalProps> = ({ isOpen, onClose, matchId }) => {
   const [matchDetails, setMatchDetails] = useState<any>(null);
   const [h2hData, setH2hData] = useState<any>(null);
@@ -74,6 +76,12 @@ export const MatchDetailModal: React.FC<MatchDetailModalProps> = ({ isOpen, onCl
 
   if (!isOpen) return null;
 
+  // Mocked AI analytical data for the modal's gauge
+  const aiStats = {
+    confidence: 72,
+    volatility: 42
+  };
+
   return (
     <AnimatePresence>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -83,7 +91,7 @@ export const MatchDetailModal: React.FC<MatchDetailModalProps> = ({ isOpen, onCl
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+          className="absolute inset-0 bg-black/90 backdrop-blur-md"
         />
 
         {/* Modal Content */}
@@ -91,308 +99,203 @@ export const MatchDetailModal: React.FC<MatchDetailModalProps> = ({ isOpen, onCl
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="relative w-full max-w-4xl bg-zinc-950 border border-zinc-900 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+          className="relative w-full max-w-5xl bg-zinc-950 border border-zinc-900 rounded-[48px] shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col max-h-[90vh]"
         >
           {/* Header */}
-          <div className="p-6 border-b border-zinc-900 flex items-center justify-between bg-zinc-950/50">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-yellow-500/10 rounded-xl flex items-center justify-center">
-                <Info className="w-5 h-5 text-yellow-500" />
+          <div className="p-8 border-b border-zinc-900 flex items-center justify-between bg-black/40">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-yellow-500/10 rounded-2xl flex items-center justify-center border border-yellow-500/20">
+                <BrainCircuit className="w-6 h-6 text-yellow-500" />
               </div>
               <div>
-                <h2 className="text-xl font-black uppercase tracking-tighter">Strategic Intelligence Report</h2>
-                <p className="text-xs text-zinc-500 font-mono">MATCH_ID: {matchId}</p>
+                <h2 className="text-2xl font-black uppercase tracking-tighter">Strategic Intelligence Node</h2>
+                <div className="flex items-center gap-3">
+                   <p className="text-[10px] text-zinc-500 font-mono tracking-widest uppercase">Target: INFRA-{matchId}</p>
+                   <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                   <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Connection Stable</span>
+                </div>
               </div>
             </div>
-            <Button variant="ghost" size="icon" onClick={onClose} className="rounded-full hover:bg-zinc-900">
-              <X className="w-5 h-5" />
+            <Button variant="ghost" size="icon" onClick={onClose} className="rounded-full hover:bg-zinc-900 w-12 h-12">
+              <X className="w-6 h-6" />
             </Button>
           </div>
 
           <ScrollArea className="flex-1">
-            <div className="p-8 space-y-12">
+            <div className="p-10 space-y-12">
               {loading ? (
                 <div className="space-y-8 animate-pulse">
-                  <div className="h-40 bg-zinc-900 rounded-3xl w-full" />
-                  <div className="grid grid-cols-2 gap-8">
-                     <div className="h-32 bg-zinc-900 rounded-3xl" />
-                     <div className="h-32 bg-zinc-900 rounded-3xl" />
+                  <div className="h-48 bg-zinc-900 rounded-[40px] w-full" />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                     <div className="h-40 bg-zinc-900 rounded-[40px]" />
+                     <div className="h-40 bg-zinc-900 rounded-[40px]" />
                   </div>
-                  <div className="h-64 bg-zinc-900 rounded-3xl w-full" />
+                  <div className="h-80 bg-zinc-900 rounded-[40px] w-full" />
                 </div>
               ) : matchDetails ? (
                 <>
-                  {/* Match Banner */}
-                  <div className="relative group">
-                    <div className="absolute inset-0 bg-gradient-to-r from-yellow-500/10 to-emerald-500/10 blur-3xl opacity-50 transition-opacity" />
-                    <div className="relative bg-zinc-900/50 border border-zinc-800 p-8 rounded-[40px] flex flex-col items-center">
-                      <div className="flex items-center justify-between w-full max-w-2xl">
-                        <div className="flex flex-col md:flex-row items-center gap-4 text-center md:text-left">
-                          <div className="w-16 h-16 md:w-20 md:h-20 bg-zinc-950 rounded-full flex items-center justify-center border border-zinc-800 shadow-xl group-hover:scale-110 transition-transform overflow-hidden p-3 shrink-0">
-                            {matchDetails.homeTeam?.crest ? (
-                              <img 
-                                src={matchDetails.homeTeam.crest} 
-                                alt={matchDetails.homeTeam.name} 
-                                className="w-full h-full object-contain"
-                                referrerPolicy="no-referrer"
-                              />
-                            ) : (
-                              <Users className="w-10 h-10 text-zinc-400" />
-                            )}
+                  {/* Tactical Grid */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+                    <div className="lg:col-span-7 space-y-10">
+                      {/* Match HUD */}
+                      <div className="relative bg-zinc-900/30 border border-zinc-800 p-10 rounded-[48px] overflow-hidden group">
+                        <div className="absolute inset-0 bg-gradient-to-br from-yellow-500/5 via-transparent to-emerald-500/5 opacity-50" />
+                        <div className="relative z-10 flex flex-col items-center">
+                          <div className="flex items-center justify-between w-full mb-10">
+                             <div className="text-center group/home">
+                                <div className="w-24 h-24 bg-zinc-950 rounded-full flex items-center justify-center border border-zinc-800 shadow-2xl mb-4 group-hover/home:scale-110 transition-transform overflow-hidden p-4">
+                                   <img src={matchDetails.homeTeam.crest} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+                                </div>
+                                <h3 className="text-xl font-black uppercase tracking-tighter">{matchDetails.homeTeam.name}</h3>
+                             </div>
+
+                             <div className="flex flex-col items-center gap-4">
+                                <div className="text-5xl font-black font-mono tracking-tighter bg-zinc-950/80 backdrop-blur px-8 py-5 rounded-3xl border border-zinc-800 shadow-2xl">
+                                   {matchDetails.score?.fullTime?.home ?? 0} : {matchDetails.score?.fullTime?.away ?? 0}
+                                </div>
+                                <Badge className="bg-zinc-900 text-zinc-500 font-black border-zinc-800 py-1.5 px-4 h-auto rounded-full uppercase tracking-[0.2em] text-[10px]">
+                                   {matchDetails.status}
+                                </Badge>
+                             </div>
+
+                             <div className="text-center group/away">
+                                <div className="w-24 h-24 bg-zinc-950 rounded-full flex items-center justify-center border border-zinc-800 shadow-2xl mb-4 group-hover/away:scale-110 transition-transform overflow-hidden p-4">
+                                   <img src={matchDetails.awayTeam.crest} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+                                </div>
+                                <h3 className="text-xl font-black uppercase tracking-tighter">{matchDetails.awayTeam.name}</h3>
+                             </div>
                           </div>
-                          <span className="text-xl font-black uppercase tracking-tighter max-w-[150px] leading-tight">{matchDetails.homeTeam?.name}</span>
-                        </div>
-                        
-                        <div className="flex flex-col items-center gap-2">
-                           <Badge variant="outline" className="bg-zinc-950 border-zinc-800 text-[10px] uppercase tracking-widest font-black">VS</Badge>
-                           <div className="text-4xl font-black font-mono tracking-tighter">
-                             {matchDetails.score?.fullTime?.home ?? 0} : {matchDetails.score?.fullTime?.away ?? 0}
-                           </div>
-                           <span className="text-[10px] font-black uppercase text-zinc-600 tracking-widest bg-zinc-950 px-3 py-1 rounded-full border border-zinc-900">
-                             {matchDetails.status}
-                           </span>
-                        </div>
 
-                        <div className="flex flex-col md:flex-row-reverse items-center gap-4 text-center md:text-right">
-                          <div className="w-16 h-16 md:w-20 md:h-20 bg-zinc-950 rounded-full flex items-center justify-center border border-zinc-800 shadow-xl group-hover:scale-110 transition-transform overflow-hidden p-3 shrink-0">
-                            {matchDetails.awayTeam?.crest ? (
-                              <img 
-                                src={matchDetails.awayTeam.crest} 
-                                alt={matchDetails.awayTeam.name} 
-                                className="w-full h-full object-contain"
-                                referrerPolicy="no-referrer"
-                              />
-                            ) : (
-                              <Users className="w-10 h-10 text-zinc-400" />
-                            )}
+                          <div className="grid grid-cols-3 w-full gap-4 pt-10 border-t border-zinc-800/50">
+                             <div className="text-center space-y-1">
+                                <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">Venue</p>
+                                <p className="text-xs font-bold text-zinc-300 truncate">{matchDetails.venue || "TBD"}</p>
+                             </div>
+                             <div className="text-center space-y-1">
+                                <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">Arbiter</p>
+                                <p className="text-xs font-bold text-zinc-300 truncate">{matchDetails.referee?.name || "Official"}</p>
+                             </div>
+                             <div className="text-center space-y-1">
+                                <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">Temporal</p>
+                                <p className="text-xs font-bold text-zinc-300 truncate">{new Date(matchDetails.utcDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                             </div>
                           </div>
-                          <span className="text-xl font-black uppercase tracking-tighter max-w-[150px] leading-tight">{matchDetails.awayTeam?.name}</span>
                         </div>
                       </div>
-                    </div>
-                  </div>
 
-                  {/* Venue & Referee Info */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                     <div className="bg-zinc-950 border border-zinc-900 p-6 rounded-3xl space-y-4">
-                        <div className="flex items-center gap-2 text-zinc-500">
-                          <MapPin className="w-4 h-4" />
-                          <span className="text-[10px] font-black uppercase tracking-widest">Theater of Operations</span>
-                        </div>
-                        <p className="text-lg font-black uppercase tracking-tight">{matchDetails.venue || "Undisclosed Venue"}</p>
-                        <div className="flex items-center gap-2 text-zinc-600">
-                          <Calendar className="w-3 h-3" />
-                          <span className="text-[10px] font-mono">{new Date(matchDetails.utcDate).toLocaleString()}</span>
-                        </div>
-                     </div>
-
-                     <div className="bg-zinc-950 border border-zinc-900 p-6 rounded-3xl space-y-4">
-                        <div className="flex items-center gap-2 text-zinc-500">
-                          <User className="w-4 h-4" />
-                          <span className="text-[10px] font-black uppercase tracking-widest">Lead Arbiter</span>
-                        </div>
-                        <p className="text-lg font-black uppercase tracking-tight">{matchDetails.referee?.name || "Official TBD"}</p>
-                        <div className="flex items-center gap-2 text-zinc-600">
-                          <Activity className="w-3 h-3 text-emerald-500" />
-                          <span className="text-[10px] font-mono">Disciplinary Node Verified</span>
-                        </div>
-                     </div>
-                  </div>
-
-                  <Separator className="bg-zinc-900" />
-
-                  {/* Tactical Statistics */}
-                  <div className="space-y-8">
-                    <div className="flex items-center gap-3">
-                      <BarChart3 className="w-5 h-5 text-emerald-500" />
-                      <h3 className="text-lg font-black uppercase tracking-widest">Tactical Operation Metrics</h3>
-                    </div>
-
-                    {matchDetails.statistics ? (
-                      <div className="space-y-6 bg-zinc-950 border border-zinc-900 p-8 rounded-[40px]">
-                        <StatRow 
-                          label="Ball Possession" 
-                          home={parseInt(matchDetails.statistics.possession?.home || "0")} 
-                          away={parseInt(matchDetails.statistics.possession?.away || "0")} 
-                          unit="%"
-                        />
-                        <StatRow 
-                          label="Total Shots" 
-                          home={matchDetails.statistics.shots?.home ?? 0} 
-                          away={matchDetails.statistics.shots?.away ?? 0} 
-                        />
-                        <StatRow 
-                          label="Shots on Target" 
-                          home={matchDetails.statistics.shotsOnTarget?.home ?? 0} 
-                          away={matchDetails.statistics.shotsOnTarget?.away ?? 0} 
-                        />
-                        <StatRow 
-                          label="Corner Kicks" 
-                          home={matchDetails.statistics.corners?.home ?? 0} 
-                          away={matchDetails.statistics.corners?.away ?? 0} 
-                        />
-                        <StatRow 
-                          label="Disciplinary (Fouls)" 
-                          home={matchDetails.statistics.fouls?.home ?? 0} 
-                          away={matchDetails.statistics.fouls?.away ?? 0} 
-                        />
-                      </div>
-                    ) : (
-                      <div className="p-12 text-center border-2 border-dashed border-zinc-900 rounded-3xl bg-zinc-950/50">
-                        <Target className="w-8 h-8 text-zinc-800 mx-auto mb-4" />
-                        <h4 className="text-sm font-black uppercase tracking-widest text-zinc-600">Statistics Feed Offline</h4>
-                        <p className="text-[10px] text-zinc-700 font-medium mt-2 uppercase tracking-tight">
-                          Real-time tactical metrics are only available for live engagements and verified completed operations in specific theatre commands.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  <Separator className="bg-zinc-900" />
-
-                  {/* H2H Statistics */}
-                  <div className="space-y-8">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                         <History className="w-5 h-5 text-zinc-400" />
-                         <h3 className="text-lg font-black uppercase tracking-widest">Legacy Interaction Feed</h3>
-                      </div>
-                      <Badge variant="outline" className="border-zinc-800 text-[10px] uppercase font-black tracking-widest text-zinc-500">
-                        Total: {h2hData?.aggregates?.numberOfMatches ?? 0} Engagements
-                      </Badge>
-                    </div>
-
-                    {h2hData ? (
+                      {/* Statistics HUD */}
                       <div className="space-y-6">
-                        {/* Win Distribution */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                          <div className="bg-emerald-500/5 border border-emerald-500/20 p-6 rounded-3xl text-center group hover:bg-emerald-500/10 transition-all">
-                            <span className="text-4xl font-black text-emerald-500 leading-none">{h2hData.aggregates?.homeTeam?.wins ?? 0}</span>
-                            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mt-2">{matchDetails.homeTeam?.name} VICTORIES</p>
-                          </div>
-                          <div className="bg-zinc-900/30 border border-zinc-800/50 p-6 rounded-3xl text-center">
-                            <span className="text-4xl font-black text-zinc-400 leading-none">{h2hData.aggregates?.homeTeam?.draws ?? 0}</span>
-                            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mt-2">STALEMATES</p>
-                          </div>
-                          <div className="bg-blue-500/5 border border-blue-500/20 p-6 rounded-3xl text-center group hover:bg-blue-500/10 transition-all">
-                            <span className="text-4xl font-black text-blue-500 leading-none">{h2hData.aggregates?.awayTeam?.wins ?? 0}</span>
-                            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mt-2">{matchDetails.awayTeam?.name} VICTORIES</p>
-                          </div>
+                        <div className="flex items-center gap-3">
+                           <BarChart3 className="w-5 h-5 text-emerald-500" />
+                           <h3 className="text-lg font-black uppercase tracking-widest">Operational Metrics</h3>
                         </div>
-
-                        {/* Highlighted Most Recent Encounter */}
-                        {h2hData.matches && h2hData.matches.length > 0 && (
-                          <div className="relative overflow-hidden bg-zinc-900/30 border border-zinc-800 p-8 rounded-[40px] group">
-                            <div className="absolute top-0 right-0 p-4">
-                              <Badge className="bg-yellow-500 text-black font-black uppercase text-[8px] tracking-widest">Latest Engagement</Badge>
-                            </div>
-                            <div className="flex flex-col items-center gap-6">
-                              <div className="flex items-center gap-2 text-zinc-600">
-                                <Calendar className="w-3.5 h-3.5" />
-                                <span className="text-[10px] font-black uppercase tracking-widest">
-                                  {new Date(h2hData.matches[0].utcDate).toLocaleDateString(undefined, { 
-                                    weekday: 'long', 
-                                    year: 'numeric', 
-                                    month: 'long', 
-                                    day: 'numeric' 
-                                  })}
-                                </span>
-                              </div>
-                              
-                              <div className="flex items-center justify-center gap-8 w-full">
-                                <div className="flex-1 text-right">
-                                  <span className="text-lg font-black uppercase tracking-tighter truncate block">{h2hData.matches[0].homeTeam.name}</span>
-                                </div>
-                                <div className="flex flex-col items-center gap-1">
-                                  <div className="text-3xl font-black font-mono tracking-tighter bg-zinc-950 px-6 py-3 rounded-2xl border border-zinc-800 shadow-2xl group-hover:scale-105 transition-transform duration-500">
-                                    {h2hData.matches[0].score?.fullTime?.home} - {h2hData.matches[0].score?.fullTime?.away}
-                                  </div>
-                                </div>
-                                <div className="flex-1 text-left">
-                                  <span className="text-lg font-black uppercase tracking-tighter truncate block">{h2hData.matches[0].awayTeam.name}</span>
-                                </div>
-                              </div>
-                              
-                              <div className="flex items-center gap-2">
-                                <Trophy className="w-3 h-3 text-zinc-500" />
-                                <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">
-                                  {h2hData.matches[0].competition?.name || "Official Competition"}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
+                        {matchDetails.statistics ? (
+                           <div className="grid grid-cols-1 gap-6 bg-zinc-900/20 border border-zinc-800/50 p-10 rounded-[40px]">
+                              <StatRow label="Possession" home={parseInt(matchDetails.statistics.possession?.home || "0")} away={parseInt(matchDetails.statistics.possession?.away || "0")} unit="%" />
+                              <StatRow label="Tactical Shots" home={matchDetails.statistics.shots?.home ?? 0} away={matchDetails.statistics.shots?.away ?? 0} />
+                              <StatRow label="Precision Strikes" home={matchDetails.statistics.shotsOnTarget?.home ?? 0} away={matchDetails.statistics.shotsOnTarget?.away ?? 0} />
+                              <StatRow label="Disciplinary Events" home={matchDetails.statistics.fouls?.home ?? 0} away={matchDetails.statistics.fouls?.away ?? 0} />
+                           </div>
+                        ) : (
+                           <div className="p-20 text-center bg-zinc-950 border border-zinc-900 border-dashed rounded-[40px]">
+                              <Target className="w-12 h-12 text-zinc-800 mx-auto mb-6" />
+                              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-600">Metric stream not initialized for this fixture node.</p>
+                           </div>
                         )}
                       </div>
-                    ) : (
-                      <div className="p-12 text-center border-2 border-dashed border-zinc-900 rounded-3xl">
-                        <p className="text-zinc-600 font-medium">Historical head-to-head data not currently accessible in the grid.</p>
-                      </div>
-                    )}
-                  </div>
+                    </div>
 
-                  {/* Recent History List */}
-                  {h2hData?.matches?.length > 1 && (
-                    <div className="space-y-6">
-                      <div className="flex items-center gap-2">
-                        <Target className="w-4 h-4 text-zinc-500" />
-                        <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">Historical Engagement Logs</h4>
-                      </div>
-                      <div className="space-y-2">
-                        {h2hData.matches.slice(1, 6).map((m: any) => (
-                          <div key={m.id} className="bg-zinc-950 border border-zinc-900/50 p-4 rounded-2xl flex items-center justify-between group hover:border-zinc-800 transition-all">
-                            <div className="flex items-center gap-3 w-28">
-                              <Calendar className="w-3 h-3 text-zinc-700" />
-                              <span className="text-[10px] font-mono text-zinc-600">
-                                {new Date(m.utcDate).toLocaleDateString(undefined, { year: '2-digit', month: 'short', day: 'numeric' })}
-                              </span>
+                    <div className="lg:col-span-5 space-y-10">
+                      {/* AI Stability Component */}
+                      <VolatilityGauge confidence={aiStats.confidence} marketVolatility={aiStats.volatility} label="AI Node Stability Index" />
+
+                      {/* Head-to-Head HUD */}
+                      <div className="bg-zinc-950 border border-zinc-900 p-8 rounded-[48px] space-y-8">
+                         <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                               <History className="w-5 h-5 text-zinc-500" />
+                               <h3 className="text-lg font-black uppercase tracking-widest">Legacy Logs</h3>
                             </div>
-                            <div className="flex items-center gap-4 flex-1 justify-center px-4">
-                              <span className="text-xs font-bold uppercase tracking-tight text-right flex-1 truncate">{m.homeTeam.name}</span>
-                              <div className="bg-zinc-900 px-4 py-2 rounded-xl text-xs font-black font-mono border border-zinc-800 shadow-inner min-w-[70px] text-center">
-                                {m.score?.fullTime?.home ?? '?'} - {m.score?.fullTime?.away ?? '?'}
-                              </div>
-                              <span className="text-xs font-bold uppercase tracking-tight text-left flex-1 truncate">{m.awayTeam.name}</span>
+                            <Badge variant="outline" className="border-zinc-800 text-[10px] uppercase font-black tracking-widest text-zinc-600">
+                               n={h2hData?.aggregates?.numberOfMatches || 0}
+                            </Badge>
+                         </div>
+
+                         {h2hData ? (
+                            <div className="space-y-6">
+                               <div className="flex items-center gap-3 h-4 w-full rounded-full overflow-hidden bg-zinc-900">
+                                  <div className="h-full bg-white opacity-90" style={{ width: `${(h2hData.aggregates?.homeTeam?.wins / h2hData.aggregates?.numberOfMatches) * 100}%` }} />
+                                  <div className="h-full bg-zinc-700" style={{ width: `${(h2hData.aggregates?.homeTeam?.draws / h2hData.aggregates?.numberOfMatches) * 100}%` }} />
+                                  <div className="h-full bg-blue-600" style={{ width: `${(h2hData.aggregates?.awayTeam?.wins / h2hData.aggregates?.numberOfMatches) * 100}%` }} />
+                               </div>
+                               
+                               <div className="grid grid-cols-3 text-center gap-4">
+                                  <div>
+                                     <p className="text-[9px] font-black text-zinc-600 uppercase tracking-widest mb-1">Host wins</p>
+                                     <p className="text-2xl font-black text-white">{h2hData.aggregates?.homeTeam?.wins || 0}</p>
+                                  </div>
+                                  <div>
+                                     <p className="text-[9px] font-black text-zinc-600 uppercase tracking-widest mb-1">Stalemates</p>
+                                     <p className="text-2xl font-black text-white">{h2hData.aggregates?.homeTeam?.draws || 0}</p>
+                                  </div>
+                                  <div>
+                                     <p className="text-[9px] font-black text-zinc-600 uppercase tracking-widest mb-1">Assailant wins</p>
+                                     <p className="text-2xl font-black text-white">{h2hData.aggregates?.awayTeam?.wins || 0}</p>
+                                  </div>
+                               </div>
+
+                               <Separator className="bg-zinc-900" />
+
+                               <div className="space-y-3">
+                                  {h2hData.matches?.slice(0, 3).map((m: any, idx: number) => (
+                                     <div key={idx} className="bg-zinc-900/40 p-4 rounded-2xl flex items-center justify-between group/h2h hover:border-zinc-700 border border-transparent transition-all">
+                                        <span className="text-[10px] font-mono text-zinc-600">{new Date(m.utcDate).getFullYear()}</span>
+                                        <div className="flex items-center gap-3">
+                                           <span className="text-xs font-black uppercase text-zinc-100">{m.homeTeam.name.split(' ').pop()}</span>
+                                           <div className="bg-zinc-950 px-3 py-1 rounded-lg border border-zinc-800 text-[10px] font-black font-mono">
+                                              {m.score.fullTime.home}-{m.score.fullTime.away}
+                                           </div>
+                                           <span className="text-xs font-black uppercase text-zinc-100">{m.awayTeam.name.split(' ').pop()}</span>
+                                        </div>
+                                     </div>
+                                  ))}
+                               </div>
                             </div>
-                            <div className="w-24 hidden md:flex justify-end">
-                              <Badge variant="outline" className="text-[8px] uppercase tracking-widest font-black border-zinc-800 opacity-50">
-                                {m.competition?.name || "LEAGUE"}
-                              </Badge>
+                         ) : (
+                            <div className="p-10 text-center border-2 border-dashed border-zinc-900 rounded-[32px] opacity-30">
+                               <p className="text-xs font-black uppercase tracking-widest">No Archival Logs</p>
                             </div>
-                          </div>
-                        ))}
+                         )}
                       </div>
                     </div>
-                  )}
-
-                  <div className="bg-zinc-950 border border-zinc-900 p-8 rounded-[40px] space-y-4">
-                    <div className="flex items-center gap-3">
-                      <Activity className="w-5 h-5 text-yellow-500" />
-                      <h3 className="text-lg font-black uppercase tracking-widest">Squad Status Update</h3>
-                    </div>
-                    <p className="text-sm text-zinc-500 leading-relaxed font-medium italic">
-                      "Real-time squad news is currently aggregated from verified scout networks. Full roster breakdowns are available 60 minutes prior to tactical initiation (Kick-off)."
-                    </p>
                   </div>
                 </>
               ) : (
                 <div className="p-20 text-center">
-                  <p className="text-zinc-500">Could not retrieve match intelligence. Connection error.</p>
+                  <p className="text-zinc-500 font-black uppercase tracking-widest">Fixtured node not found in current sector.</p>
                 </div>
               )}
             </div>
           </ScrollArea>
 
-          <div className="p-6 border-t border-zinc-900 bg-zinc-950 flex justify-end gap-3">
-            <Button
-              onClick={() => { onClose(); navigate(`/matches/${matchId}`); }}
-              className="bg-yellow-500 hover:bg-yellow-400 text-black font-black uppercase tracking-tighter h-12 px-8 rounded-2xl"
-            >
-              <ExternalLink className="w-4 h-4 mr-2" />
-              Full Intelligence Report
-            </Button>
-            <Button onClick={onClose} className="bg-zinc-900 border-zinc-800 text-[10px] uppercase font-black tracking-widest hover:bg-zinc-800 text-white h-12 px-8 rounded-2xl">
-              Deactivate Briefing
-            </Button>
+          <div className="p-8 border-t border-zinc-900 bg-black/40 flex flex-col md:flex-row justify-between items-center gap-6">
+            <div className="flex items-center gap-2 group cursor-pointer" onClick={() => { onClose(); navigate(`/matches/${matchId}`); }}>
+               <div className="w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500 group-hover:bg-emerald-500 group-hover:text-black transition-all">
+                  <ExternalLink className="w-4 h-4" />
+               </div>
+               <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 group-hover:text-white transition-colors">Access Full Tactical Roster</span>
+            </div>
+            <div className="flex gap-4 w-full md:w-auto">
+               <Button onClick={onClose} variant="outline" className="flex-1 md:flex-none h-14 bg-zinc-900 border-zinc-800 text-zinc-100 font-black uppercase text-[10px] tracking-widest px-10 rounded-2xl hover:bg-zinc-800">
+                 Dismiss HUD
+               </Button>
+               <Button 
+                 onClick={() => { onClose(); navigate(`/matches/${matchId}`); }}
+                 className="flex-1 md:flex-none h-14 bg-yellow-500 hover:bg-yellow-400 text-black font-black uppercase text-[10px] tracking-widest px-10 rounded-2xl shadow-[0_0_30px_rgba(234,179,8,0.3)] transition-all"
+               >
+                 Initialize Full Analysis
+               </Button>
+            </div>
           </div>
         </motion.div>
       </div>

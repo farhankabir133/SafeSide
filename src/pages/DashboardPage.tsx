@@ -33,6 +33,8 @@ import {
   Bar
 } from 'recharts';
 
+import { NodeEquityFlow } from '@/src/components/CommandCenter/NodeEquityFlow';
+
 export default function DashboardPage() {
   const { user } = useAuth();
   const [predictions, setPredictions] = useState<any[]>([]);
@@ -122,9 +124,10 @@ export default function DashboardPage() {
     const leagues: Record<string, { total: number; wins: number }> = {};
     predictions.forEach(p => {
       if (p.status === 'completed' && p.competition_name) {
-        if (!leagues[p.competition_name]) leagues[p.competition_name] = { total: 0, wins: 0 };
-        leagues[p.competition_name].total++;
-        if (p.outcome === 'win') leagues[p.competition_name].wins++;
+        const name = p.competition_name;
+        if (!leagues[name]) leagues[name] = { total: 0, wins: 0 };
+        leagues[name].total++;
+        if (p.outcome === 'win') leagues[name].wins++;
       }
     });
     return Object.entries(leagues).map(([name, s]) => ({
@@ -144,18 +147,26 @@ export default function DashboardPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-12">
-      <div className="mb-12">
-        <h2 className="text-6xl font-black tracking-tighter uppercase mb-4">Command <br/> Cockpit</h2>
-        <p className="text-zinc-500 font-medium">Performance monitoring for node: {user?.email?.split('@')[0].toUpperCase()}</p>
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-16">
+        <div>
+          <Badge variant="outline" className="border-yellow-500/30 text-yellow-500 bg-yellow-500/5 font-mono text-[9px] py-1.5 px-4 rounded-lg uppercase tracking-[0.2em] mb-4">
+             Terminal Dashboard Overlay
+          </Badge>
+          <h2 className="text-6xl font-black tracking-tighter uppercase leading-[0.9]">Command <br/><span className="text-zinc-600">Cockpit</span></h2>
+        </div>
+        <div className="text-right">
+          <p className="text-zinc-500 font-bold uppercase tracking-widest text-[10px]">Node Operator</p>
+          <p className="text-xl font-black text-white">{user?.email?.split('@')[0].toUpperCase()}</p>
+        </div>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
         {[
-          { label: 'Intelligence Scans', value: stats.total, icon: Target, color: 'text-blue-500', trend: '+12% vs last week' },
-          { label: 'Unit Accuracy', value: `${stats.winRate.toFixed(1)}%`, icon: Trophy, color: 'text-emerald-500', trend: 'Calibration: High' },
-          { label: 'Profit/Loss ROI', value: `${stats.roi.toFixed(1)}%`, icon: stats.roi >= 0 ? TrendingUp : TrendingDown, color: stats.roi >= 0 ? 'text-yellow-500' : 'text-red-500', trend: 'Based on 1.9 Avg Odds' },
-          { label: 'Operational Streak', value: stats.streak, icon: Activity, color: 'text-zinc-100', trend: 'Consecutive Successes' },
+          { label: 'Intelligence Scans', value: stats.total, icon: Target, color: 'text-blue-500', trend: 'Global Network' },
+          { label: 'Unit Accuracy', value: `${stats.winRate.toFixed(1)}%`, icon: Trophy, color: 'text-emerald-500', trend: 'Delta: Stable' },
+          { label: 'Tactical ROI', value: `${stats.roi.toFixed(1)}%`, icon: stats.roi >= 0 ? TrendingUp : TrendingDown, color: stats.roi >= 0 ? 'text-yellow-500' : 'text-red-500', trend: '1.9 Avg Basis' },
+          { label: 'Operational Streak', value: stats.streak, icon: Activity, color: 'text-zinc-100', trend: 'Verified' },
         ].map((stat, i) => (
           <motion.div 
             key={i}
@@ -163,15 +174,16 @@ export default function DashboardPage() {
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: i * 0.1 }}
           >
-            <Card className="bg-zinc-950 border-zinc-900 p-8 rounded-3xl relative overflow-hidden group">
-              <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity">
-                <stat.icon className={`w-16 h-16 ${stat.color}`} />
+            <Card className="bg-zinc-950 border-zinc-900 p-8 rounded-[40px] relative overflow-hidden group hover:border-zinc-700 transition-all duration-500">
+              <div className="absolute top-0 right-0 p-6 opacity-[0.03] group-hover:opacity-[0.08] transition-opacity">
+                <stat.icon className={`w-20 h-20 ${stat.color}`} />
               </div>
               <div className="relative z-10">
-                <p className="text-[10px] font-black uppercase text-zinc-600 tracking-widest mb-1">{stat.label}</p>
-                <p className={`text-4xl font-black tracking-tighter mb-4 ${stat.color}`}>{stat.value}</p>
+                <p className="text-[10px] font-black uppercase text-zinc-600 tracking-widest mb-2">{stat.label}</p>
+                <p className={`text-5xl font-black tracking-tighter mb-4 ${stat.color}`}>{stat.value}</p>
                 <div className="flex items-center gap-2">
-                  <span className="text-[9px] font-black uppercase text-zinc-700 tracking-widest">{stat.trend}</span>
+                   <div className={cn("w-1.5 h-1.5 rounded-full animate-pulse", stat.color.replace('text-', 'bg-'))} />
+                   <span className="text-[9px] font-black uppercase text-zinc-700 tracking-widest">{stat.trend}</span>
                 </div>
               </div>
             </Card>
@@ -179,70 +191,31 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 mb-12">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 mb-16">
         {/* P&L Flow Chart */}
         <div className="lg:col-span-8">
-          <Card className="bg-zinc-950 border-zinc-900 p-8 rounded-3xl h-[450px]">
-            <div className="flex items-center justify-between mb-8">
-              <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">Node Equity Flow (Last 30 Days)</h3>
-              <div className="flex gap-4">
-                 <div className="flex items-center gap-1.5">
-                    <div className="w-2 h-2 rounded-full bg-yellow-500" />
-                    <span className="text-[9px] font-black uppercase text-zinc-600">Balance</span>
-                 </div>
+          <Card className="bg-zinc-950 border-zinc-900 p-10 rounded-[48px] h-[500px]">
+            <div className="flex items-center justify-between mb-10">
+              <div>
+                <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-600 mb-1">Performance Vector</h3>
+                <p className="text-xl font-black uppercase tracking-tighter">Node Equity Flow</p>
+              </div>
+              <div className="bg-zinc-900 p-3 rounded-2xl border border-zinc-800">
+                 <Activity className="w-5 h-5 text-yellow-500" />
               </div>
             </div>
-            <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData}>
-                  <defs>
-                    <linearGradient id="colorBalance" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#eab308" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#eab308" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#18181b" vertical={false} />
-                  <XAxis 
-                    dataKey="date" 
-                    stroke="#3f3f46" 
-                    fontSize={10} 
-                    fontFamily="JetBrains Mono"
-                    tickLine={false}
-                    axisLine={false}
-                    dy={10}
-                  />
-                  <YAxis 
-                    stroke="#3f3f46" 
-                    fontSize={10} 
-                    fontFamily="JetBrains Mono"
-                    tickLine={false}
-                    axisLine={false}
-                    dx={-10}
-                  />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: '#000', border: '1px solid #27272a', borderRadius: '12px' }}
-                    labelStyle={{ fontSize: '10px', color: '#71717a', fontWeight: 'bold' }}
-                    itemStyle={{ fontSize: '12px', fontWeight: 'black', color: '#eab308' }}
-                  />
-                  <Area 
-                    type="monotone" 
-                    dataKey="balance" 
-                    stroke="#eab308" 
-                    fillOpacity={1} 
-                    fill="url(#colorBalance)" 
-                    strokeWidth={3}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
+            <NodeEquityFlow data={chartData} height={320} />
           </Card>
         </div>
 
         {/* Accuracy by League */}
         <div className="lg:col-span-4">
-          <Card className="bg-zinc-950 border-zinc-900 p-8 rounded-3xl h-[450px]">
-            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 mb-8">Theater Calibration</h3>
-            <div className="h-[300px] w-full">
+          <Card className="bg-zinc-950 border-zinc-900 p-10 rounded-[48px] h-[500px] flex flex-col">
+            <div className="mb-10">
+              <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-600 mb-1">Calibration Grid</h3>
+              <p className="text-xl font-black uppercase tracking-tighter">Theater Accuracy</p>
+            </div>
+            <div className="flex-1 w-full min-h-0">
                <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={leagueAccuracyData} layout="vertical">
                     <CartesianGrid strokeDasharray="3 3" stroke="#18181b" horizontal={false} />
@@ -261,12 +234,12 @@ export default function DashboardPage() {
                       cursor={{fill: '#18181b'}}
                       contentStyle={{ backgroundColor: '#000', border: '1px solid #27272a', borderRadius: '12px' }}
                     />
-                    <Bar dataKey="accuracy" fill="#eab308" radius={[0, 4, 4, 0]} barSize={20} />
+                    <Bar dataKey="accuracy" fill="#eab308" radius={[0, 8, 8, 0]} barSize={24} />
                   </BarChart>
                </ResponsiveContainer>
             </div>
-            <div className="mt-4 pt-4 border-t border-zinc-900">
-               <p className="text-[9px] text-zinc-600 leading-relaxed">System performs at maximum efficiency within high-volume European zones.</p>
+            <div className="mt-8 pt-6 border-t border-zinc-900 italic">
+               <p className="text-[10px] text-zinc-600 leading-relaxed font-medium">Optimization suggests focus on high-liquidity European markets for maximum drift capture.</p>
             </div>
           </Card>
         </div>

@@ -1,9 +1,10 @@
 import React from 'react';
-import { BrainCircuit, Globe, LogIn, LayoutDashboard, Settings, LogOut, Menu, User } from 'lucide-react';
+import { BrainCircuit, Globe, LogIn, LayoutDashboard, Settings, LogOut, Menu, User, Zap } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/src/components/ui/button';
 import { Separator } from '@/src/components/ui/separator';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { useAgent } from '@/src/contexts/AgentContext';
 import { cn } from '@/src/lib/utils';
 import {
   DropdownMenu,
@@ -22,6 +23,7 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({ accuracy, leagueCount }) => {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
+  const { setIsChatOpen } = useAgent();
 
   const handleSignOut = async () => {
     await signOut();
@@ -52,13 +54,27 @@ export const Navbar: React.FC<NavbarProps> = ({ accuracy, leagueCount }) => {
           <Separator orientation="vertical" className="h-8 bg-zinc-800" />
           
           <div className="flex items-center gap-6">
+            <button 
+              onClick={() => setIsChatOpen(true)}
+              className="group flex flex-col items-center hover:opacity-80 transition-all"
+            >
+              <div className="flex items-center gap-1.5 mb-1">
+                <BrainCircuit className="w-3.5 h-3.5 text-yellow-500" />
+                <span className="text-[10px] uppercase font-black text-yellow-500 tracking-[0.2em] leading-none">Agent</span>
+              </div>
+              <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest group-hover:text-zinc-300">Tactical Scan</span>
+            </button>
+
             <div className="flex flex-col items-end">
               <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-widest leading-none">Global Accuracy</span>
               <span className="text-sm font-black text-emerald-500">{accuracy.toFixed(1)}%</span>
             </div>
             <div className="flex items-center gap-2">
               <Globe className="w-4 h-4 text-zinc-600" />
-              <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-widest leading-none whitespace-nowrap">Active Leagues: {leagueCount}</span>
+              <div className="flex flex-col">
+                <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-widest leading-none">Active Zones</span>
+                <span className="text-[11px] font-black text-zinc-300">{leagueCount}</span>
+              </div>
             </div>
           </div>
 

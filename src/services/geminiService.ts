@@ -49,18 +49,17 @@ ${matchData.awayTeam.name} Wins: ${h2hData.aggregates.awayTeam.wins}
 Recent Result: ${h2hData.matches && h2hData.matches[0] ? h2hData.matches[0].homeTeam.name + ' ' + h2hData.matches[0].score.fullTime.home + '-' + h2hData.matches[0].score.fullTime.away + ' ' + h2hData.matches[0].awayTeam.name : 'N/A' }
 ` : "Head-to-Head data not available.";
 
-  return `Role: Professional Tactical Analyst & Probabilistic Modeler.
-Task: Perform a deep-scan intelligence report for the following engagement.
+  return `Role: Professional Tactical Analyst & Predictive RAG Systems Architect.
+Task: Perform a "Weighted Intelligence Briefing" for the following engagement.
 
 Engagement: ${matchData.homeTeam.name} vs ${matchData.awayTeam.name}
 Competition: ${matchData.competition.name}
 ${h2hSummary}
 
-Analysis Protocol:
-1. Apply Poisson Distribution modeling for scoreline probabilities.
-2. Factor in fatigue mechanics based on match density (if available).
-3. Identify 'Value Bets' where probabilities exceed market expectations.
-4. Flag 'Trap Games' where heavy favorites are at risk due to micro-events.
+Analytical Weighting Algorithm:
+- 30% Historical RAG: Deep-time trends, league win rates, and 50-year upset frequencies.
+- 50% Present Form: Last 5 matches, xG variance, and velocity of momentum.
+- 20% Tactical Context: Squad rotation, fatigue index, and micro-event probability.
 
 Output Schema (Strict JSON):
 {
@@ -97,17 +96,16 @@ Output Schema (Strict JSON):
 export async function analyzeMatch(matchData: any, h2hData: any): Promise<MatchAnalysis> {
   const prompt = buildMatchAnalysisPrompt(matchData, h2hData);
 
-  const response = await ai.generateContent({
-    contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    generationConfig: {
-      responseMimeType: "application/json",
-    }
+  const response = await fetch("/api/analyze", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt })
   });
 
-  try {
-    const text = response.response.text();
-    return JSON.parse(text) as MatchAnalysis;
-  } catch (e) {
-    throw new Error("Failed to parse tactical analysis node output.");
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Tactical node analysis failed.");
   }
+
+  return await response.json() as MatchAnalysis;
 }

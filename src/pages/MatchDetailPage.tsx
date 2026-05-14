@@ -9,6 +9,8 @@ import {
   Info, 
   RefreshCw, 
   ChevronLeft, 
+  ChevronDown,
+  ChevronUp,
   MapPin, 
   User, 
   Calendar, 
@@ -21,7 +23,8 @@ import {
   ExternalLink,
   AlertTriangle,
   Loader2,
-  Brain
+  Brain,
+  Users
 } from 'lucide-react';
 import { Button } from '@/src/components/ui/button';
 import { Badge } from '@/src/components/ui/badge';
@@ -29,6 +32,7 @@ import { Separator } from '@/src/components/ui/separator';
 import { Skeleton } from '@/src/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/src/components/ui/tabs';
 import { Progress } from '@/src/components/ui/progress';
+import { Card, CardHeader, CardContent, CardFooter } from '@/src/components/ui/card';
 import { cn } from '@/src/lib/utils';
 import { MatchAnalysis, ai, MODEL_ID, buildMatchAnalysisPrompt } from '@/src/services/geminiService';
 import ReactMarkdown from 'react-markdown';
@@ -59,6 +63,7 @@ export default function MatchDetailPage() {
   const [loading, setLoading] = useState(true);
   const [scoreFlash, setScoreFlash] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
+  const [isReasoningExpanded, setIsReasoningExpanded] = useState(false);
 
   useEffect(() => {
     if (!matchId) return;
@@ -137,11 +142,14 @@ export default function MatchDetailPage() {
       try {
         const parsed = JSON.parse(fullText);
         setAnalysis(parsed);
+        setIsReasoningExpanded(true); // Automatically expand when analysis is ready
       } catch (parseError) {
         // Find JSON block if there's markdown wrap
         const jsonMatch = fullText.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
-          setAnalysis(JSON.parse(jsonMatch[0]));
+          const parsed = JSON.parse(jsonMatch[0]);
+          setAnalysis(parsed);
+          setIsReasoningExpanded(true);
         }
       }
     } catch (e) {
@@ -149,6 +157,18 @@ export default function MatchDetailPage() {
       toast.error('AI Analysis failed. Please try again.');
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const runAnalysis = (id: string) => {
+    if (id) {
+      handleRunAnalysis();
+      setActiveTab('ai-report');
+      // Scroll to report area after a small delay
+      setTimeout(() => {
+        const el = document.getElementById('ai-report-view');
+        if (el) el.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
     }
   };
 
@@ -271,9 +291,9 @@ export default function MatchDetailPage() {
 
             {/* Actions */}
             <div className="flex flex-wrap items-center justify-center gap-4 mt-12">
-              <Button onClick={handleRunAnalysis} loading={isGenerating} className="bg-yellow-500 hover:bg-yellow-400 text-black font-black uppercase tracking-tighter h-14 px-8 rounded-2xl shadow-xl">
-                <BrainCircuit className="w-5 h-5 mr-2" />
-                Run AI Intelligence Scan
+              <Button onClick={handleRunAnalysis} disabled={isGenerating} className="bg-yellow-500 hover:bg-yellow-400 text-black font-black uppercase tracking-tighter h-14 px-8 rounded-2xl shadow-xl">
+                {isGenerating ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <BrainCircuit className="w-5 h-5 mr-2" />}
+                {isGenerating ? "Synthesizing..." : "Run AI Intelligence Scan"}
               </Button>
               <Button variant="outline" className="bg-zinc-900 border-zinc-800 h-14 px-8 rounded-2xl text-[10px] font-black uppercase tracking-widest">
                 <MessageSquare className="w-5 h-5 mr-2" />
@@ -286,6 +306,55 @@ export default function MatchDetailPage() {
           </div>
         </section>
 
+        {/* AI Reasoning Summary (Collapsible) */}
+        <AnimatePresence>
+          {(analysis?.reasoning_summary || streamedText) && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-8 px-4"
+            >
+              <Card className="bg-zinc-950 border-zinc-900 rounded-[32px] overflow-hidden shadow-2xl">
+                <button 
+                  onClick={() => setIsReasoningExpanded(!isReasoningExpanded)}
+                  className="w-full h-16 px-8 flex justify-between items-center hover:bg-zinc-900/50 bg-zinc-950/50 transition-colors border-b border-zinc-900"
+                >
+                  <div className="flex items-center gap-3">
+                    <BrainCircuit className={cn("w-5 h-5", isGenerating ? "text-yellow-500 animate-pulse" : "text-yellow-500")} />
+                    <span className="text-sm font-black uppercase tracking-widest text-zinc-300">
+                      {isGenerating ? "Synthesizing AI Audit..." : "AI Intelligence Audit"}
+                    </span>
+                  </div>
+                  <motion.div
+                    animate={{ rotate: isReasoningExpanded ? 180 : 0 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <ChevronDown className="w-5 h-5 text-zinc-500" />
+                  </motion.div>
+                </button>
+                
+                <AnimatePresence>
+                  {isReasoningExpanded && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      <div className="p-8 md:p-10 bg-zinc-950">
+                        <div className="prose prose-invert prose-emerald max-w-none text-zinc-300 leading-relaxed font-medium">
+                          <ReactMarkdown>{streamedText || analysis?.reasoning_summary || ''}</ReactMarkdown>
+                          {isGenerating && <span className="inline-block w-2 h-5 bg-yellow-500 animate-pulse ml-2" />}
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </Card>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Strip */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
            <QuickStat label="Status" value={matchDetails.status} icon={Activity} />
@@ -293,13 +362,23 @@ export default function MatchDetailPage() {
            <QuickStat label="Official" value={matchDetails.referee?.name || 'TBD'} icon={User} />
            <QuickStat 
             label="Weather" 
-            value={weather ? `${weather.temp}°C ${weather.description}` : 'Pending...'} 
+            value={weather ? (
+              <div className="flex items-center gap-2">
+                <span>{weather.temp}°C {weather.description}</span>
+                <div className={cn(
+                  "w-2 h-2 rounded-full shrink-0",
+                  weather.impact === 'HIGH' ? 'bg-red-500 animate-pulse' : 
+                  weather.impact === 'MEDIUM' ? 'bg-yellow-500' : 'bg-emerald-500'
+                )} />
+              </div>
+            ) : 'Pending...'} 
             icon={Cloud} 
-            accent={weather?.impact === 'HIGH' ? 'text-red-500' : 'text-emerald-500'}
+            accent={weather?.impact === 'HIGH' ? 'text-red-500' : weather?.impact === 'MEDIUM' ? 'text-yellow-500' : 'text-emerald-500'}
            />
         </div>
 
         {/* Tabs */}
+        <div id="ai-report-view" />
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="w-full flex overflow-x-auto bg-zinc-900/50 border border-zinc-800 p-1 rounded-2xl h-16 mb-8 scrollbar-hide">
             {[
@@ -324,29 +403,37 @@ export default function MatchDetailPage() {
           <TabsContent value="overview">
              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 <div className="lg:col-span-8 space-y-8">
-                   {/* Probability Bar */}
-                   <Card className="bg-zinc-950 border-zinc-900 rounded-[32px] p-8">
-                      <div className="space-y-6">
-                         <div className="flex items-center justify-between">
-                            <h4 className="text-sm font-black uppercase tracking-widest text-zinc-400">Winning Probability Index</h4>
-                            <Badge variant="outline" className="border-emerald-500/20 text-emerald-500 text-[8px] uppercase">G.I.N Verified</Badge>
+                   {/* Probability Intelligence Card */}
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {analysis ? (
+                        <WinProbabilityGauge probability={analysis.prediction.win_probability.home} label="Host Dominance Index" />
+                      ) : (
+                        <div className="bg-zinc-950 border border-zinc-900 rounded-[40px] h-[280px] animate-pulse" />
+                      )}
+                      
+                      <Card className="bg-zinc-950 border-zinc-900 rounded-[40px] p-8 flex flex-col justify-center">
+                         <div className="space-y-6">
+                            <div className="flex items-center justify-between">
+                               <h4 className="text-sm font-black uppercase tracking-widest text-zinc-400">Winning Probability Index</h4>
+                               <Badge variant="outline" className="border-emerald-500/20 text-emerald-500 text-[8px] uppercase">G.I.N Verified</Badge>
+                            </div>
+                            {analysis ? (
+                              <ProbabilityBar 
+                               home={analysis.prediction.win_probability.home} 
+                               draw={analysis.prediction.win_probability.draw} 
+                               away={analysis.prediction.win_probability.away} 
+                              />
+                            ) : (
+                              <div className="h-4 bg-zinc-900 rounded-full animate-pulse" />
+                            )}
+                            <div className="grid grid-cols-3 gap-6">
+                               <IntelligenceMetric label="AI Confidence" value={analysis ? `${analysis.prediction.confidence_score}/100` : '--'} />
+                               <IntelligenceMetric label="Risk Profile" value={analysis?.risk_assessment.level || '--'} />
+                               <IntelligenceMetric label="Safe Suggestion" value={analysis?.prediction.safe_side || '--'} />
+                            </div>
                          </div>
-                         {analysis ? (
-                           <ProbabilityBar 
-                            home={analysis.prediction.win_probability.home} 
-                            draw={analysis.prediction.win_probability.draw} 
-                            away={analysis.prediction.win_probability.away} 
-                           />
-                         ) : (
-                           <div className="h-4 bg-zinc-900 rounded-full animate-pulse" />
-                         )}
-                         <div className="grid grid-cols-3 gap-6">
-                            <IntelligenceMetric label="AI Confidence" value={analysis ? `${analysis.prediction.confidence_score}/100` : '--'} />
-                            <IntelligenceMetric label="Risk Profile" value={analysis?.risk_assessment.level || '--'} />
-                            <IntelligenceMetric label="Safe Suggestion" value={analysis?.prediction.safe_side || '--'} />
-                         </div>
-                      </div>
-                   </Card>
+                      </Card>
+                   </div>
 
                    {/* Poisson Matrix */}
                    <div className="space-y-4">
@@ -396,9 +483,19 @@ export default function MatchDetailPage() {
                            </div>
                            <div className="flex justify-between py-2">
                              <span className="font-black uppercase">Tactical Impact</span>
-                             <span className={cn("font-black uppercase", weather.impact === 'HIGH' ? 'text-red-500' : 'text-emerald-500')}>
-                               {weather.impact}
-                             </span>
+                             <div className="flex items-center gap-2">
+                               <span className={cn("font-black uppercase", 
+                                 weather.impact === 'HIGH' ? 'text-red-500' : 
+                                 weather.impact === 'MEDIUM' ? 'text-yellow-500' : 'text-emerald-500'
+                               )}>
+                                 {weather.impact}
+                               </span>
+                               <div className={cn(
+                                 "w-2 h-2 rounded-full",
+                                 weather.impact === 'HIGH' ? 'bg-red-500' : 
+                                 weather.impact === 'MEDIUM' ? 'bg-yellow-500' : 'bg-emerald-500'
+                               )} />
+                             </div>
                            </div>
                         </div>
                      </Card>
@@ -599,6 +696,25 @@ export default function MatchDetailPage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Floating Action Button for Analysis */}
+      <div className="fixed bottom-8 right-8 z-50">
+        <motion.div
+           whileHover={{ scale: 1.1 }}
+           whileTap={{ scale: 0.9 }}
+        >
+          <Button 
+            onClick={() => matchId && runAnalysis(matchId)}
+            disabled={isGenerating}
+            className={cn(
+              "rounded-full w-16 h-16 bg-yellow-500 hover:bg-yellow-400 text-black shadow-[0_0_30px_rgba(234,179,8,0.4)] flex items-center justify-center p-0 border-4 border-black",
+              !isGenerating && "animate-pulse"
+            )}
+          >
+            {isGenerating ? <Loader2 className="w-8 h-8 animate-spin" /> : <BrainCircuit className="w-8 h-8" />}
+          </Button>
+        </motion.div>
+      </div>
     </div>
   );
 }
@@ -625,7 +741,7 @@ const QuickStat = ({ label, value, icon: Icon, accent = 'text-white' }: any) => 
        <Icon className="w-3.5 h-3.5" />
        <span className="text-[9px] font-black uppercase tracking-widest">{label}</span>
     </div>
-    <span className={cn("text-sm font-black uppercase truncate", accent)}>{value}</span>
+    <div className={cn("text-sm font-black uppercase truncate flex items-center gap-2", accent)}>{value}</div>
   </div>
 );
 
@@ -635,6 +751,91 @@ const IntelligenceMetric = ({ label, value }: any) => (
     <span className="text-sm font-black text-zinc-200">{value}</span>
   </div>
 );
+
+const WinProbabilityGauge = ({ probability, label }: { probability: number, label: string }) => {
+  const getGradientId = () => `gauge-gradient-${label.replace(/\s+/g, '-').toLowerCase()}`;
+
+  const getGlowColor = (p: number) => {
+    if (p < 33) return 'rgba(239, 68, 68, 0.4)';
+    if (p < 66) return 'rgba(234, 179, 8, 0.4)';
+    return 'rgba(16, 185, 129, 0.4)';
+  };
+
+  return (
+    <div className="bg-zinc-900/40 border border-zinc-800 p-8 rounded-[40px] flex flex-col items-center justify-center relative group overflow-hidden shadow-2xl">
+      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-500 via-yellow-500 to-emerald-500 opacity-20" />
+      
+      <div className="relative w-48 h-28 mb-4">
+        <svg viewBox="0 0 100 50" className="w-full h-full overflow-visible">
+          <defs>
+            <linearGradient id={getGradientId()} x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#ef4444" />
+              <stop offset="50%" stopColor="#eab308" />
+              <stop offset="100%" stopColor="#10b981" />
+            </linearGradient>
+            <filter id="glow">
+              <feGaussianBlur stdDeviation="2.5" result="coloredBlur"/>
+              <feMerge>
+                <feMergeNode in="coloredBlur"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+          </defs>
+          <path 
+            d="M 10 50 A 40 40 0 0 1 90 50" 
+            fill="none" 
+            stroke="#1d1d21" 
+            strokeWidth="8" 
+            strokeLinecap="round"
+          />
+          <motion.path 
+            d="M 10 50 A 40 40 0 0 1 90 50" 
+            fill="none" 
+            stroke={`url(#${getGradientId()})`}
+            strokeWidth="8" 
+            strokeLinecap="round"
+            initial={{ pathLength: 0 }}
+            animate={{ pathLength: probability / 100 }}
+            transition={{ duration: 1.5, ease: "easeOut" }}
+            style={{ 
+              filter: `drop-shadow(0 0 8px ${getGlowColor(probability)})` 
+            }}
+          />
+        </svg>
+        
+        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 text-center">
+          <span className="text-4xl font-black font-mono tracking-tighter text-white">
+            {Math.round(probability)}%
+          </span>
+          <div className="flex flex-col items-center mt-1">
+            <p className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-500 whitespace-nowrap">
+              {label}
+            </p>
+            <Badge variant="outline" className="mt-2 border-emerald-500/20 text-emerald-500 text-[6px] h-3 uppercase font-black tracking-widest">Neural Accuracy: High</Badge>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex gap-1 mt-6">
+        {[1,2,3,4,5,6,7,8].map(i => {
+          const stepProb = i * 12.5;
+          const isActive = probability >= stepProb;
+          return (
+            <div 
+              key={i} 
+              className={cn(
+                "w-1.5 h-3 items-center rounded-full transition-all duration-700",
+                isActive 
+                  ? (stepProb <= 33 ? 'bg-red-500' : stepProb <= 66 ? 'bg-yellow-500' : 'bg-emerald-500')
+                  : "bg-zinc-900 border border-zinc-800"
+              )} 
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+};
 
 const ProbabilityBar = ({ home, draw, away }: any) => (
   <div className="space-y-3">

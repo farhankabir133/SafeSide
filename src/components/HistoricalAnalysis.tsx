@@ -1,7 +1,7 @@
 import React from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/src/components/ui/card';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
-import { Badge } from '@/src/components/ui/badge';
+import { Badge } from '@/components/ui/badge';
 import { Trophy, TrendingUp, History } from 'lucide-react';
 
 interface HistoricalAnalysisProps {

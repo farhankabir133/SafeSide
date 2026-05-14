@@ -30,7 +30,7 @@ async function startServer() {
               id: 202601,
               utcDate: "2026-06-11T20:00:00Z",
               status: "TIMED",
-              competition: { name: "FIFA World Cup 2026", area: { name: "World" } },
+              competition: { name: "FIFA World Cup 2026", slug: "world-cup-2026", area: { name: "World" } },
               area: { name: "World" },
               homeTeam: { name: "USA" },
               awayTeam: { name: "TBD" },
@@ -41,31 +41,11 @@ async function startServer() {
               id: 101,
               utcDate: new Date(Date.now() + 86400000).toISOString(),
               status: "TIMED",
-              competition: { name: "Premier League", area: { name: "England" } },
+              competition: { name: "Premier League", slug: "premier-league", area: { name: "England" } },
               area: { name: "England" },
               homeTeam: { name: "Arsenal" },
               awayTeam: { name: "Manchester City" },
               venue: "Emirates Stadium"
-            },
-            {
-              id: 102,
-              utcDate: new Date(Date.now() + 172800000).toISOString(),
-              status: "TIMED",
-              competition: { name: "Champions League", area: { name: "Europe" } },
-              area: { name: "Europe" },
-              homeTeam: { name: "Real Madrid" },
-              awayTeam: { name: "Bayern Munich" },
-              venue: "Santiago Bernabéu"
-            },
-            {
-              id: 103,
-              utcDate: new Date(Date.now() + 259200000).toISOString(),
-              status: "TIMED",
-              competition: { name: "Primera Division", area: { name: "Spain" } },
-              area: { name: "Spain" },
-              homeTeam: { name: "Barcelona" },
-              awayTeam: { name: "Atletico Madrid" },
-              venue: "Camp Nou"
             }
           ]
         });
@@ -86,25 +66,47 @@ async function startServer() {
       const requestsRemaining = response.headers.get('x-requests-available-minute');
       const resetTime = response.headers.get('x-requestcounter-reset');
 
-      if (requestsRemaining && parseInt(requestsRemaining) < 2) {
-        console.warn(`[Football API] Rate limit critical: ${requestsRemaining} left. Resets in ${resetTime}s.`);
+      if (requestsRemaining) {
+        res.setHeader('X-Requests-Available', requestsRemaining);
       }
 
       if (!response.ok) {
         const errorData = (await response.json()) as any;
         let message = errorData.message || `API error: ${response.status}`;
-        if (message.includes("invalid") || response.status === 401) {
-          message = "Football-Data.org API key is invalid or not provided. Please check your FOOTBALL_API_KEY in the Secrets panel.";
-        }
         throw new Error(message);
       }
 
       const data = (await response.json()) as any;
       res.json({ ...data, requestsRemaining, resetTime });
     } catch (error: any) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error("Match Fetch Error:", errorMessage);
-      res.status(500).json({ error: errorMessage || "Failed to fetch match data" });
+      res.status(500).json({ error: error.message || "Failed to fetch match data" });
+    }
+  });
+
+  // AI Analysis Proxy (Server-side Gemini)
+  app.post("/api/analyze", async (req, res) => {
+    try {
+      const { prompt } = req.body;
+      const geminiApiKey = process.env.GEMINI_API_KEY;
+
+      if (!geminiApiKey) {
+         return res.status(500).json({ error: "GEMINI_API_KEY missing from server environment." });
+      }
+
+      const { GoogleGenerativeAI } = await import("@google/generative-ai");
+      const genAI = new GoogleGenerativeAI(geminiApiKey);
+      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+
+      const result = await model.generateContent({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: {
+          responseMimeType: "application/json",
+        }
+      });
+
+      res.json(JSON.parse(result.response.text()));
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
     }
   });
 
@@ -325,7 +327,25 @@ async function startServer() {
     try {
       let apiKey = process.env.FOOTBALL_API_KEY || process.env.FOOTBALL_DATA_API_KEY;
       const { id } = req.params;
-      if (!apiKey || apiKey.includes("YOUR_KEY")) return res.json({ name: "Mock Team", crest: "" });
+      if (!apiKey || apiKey.includes("YOUR_KEY")) return res.json({ 
+        id,
+        name: "Mock Tactical Node", 
+        crest: "",
+        venue: "Digital Arena",
+        founded: 1899,
+        clubColors: "Black / Yellow",
+        squad: [],
+        statistics: {
+          possession: 54,
+          shots: 12.5,
+          shotsOnTarget: 4.8,
+          corners: 5.2,
+          fouls: 11.2,
+          yellowCards: 1.8,
+          offsides: 2.1,
+          freeKicks: 14.5
+        }
+      });
       const response = await fetch(`https://api.football-data.org/v4/teams/${id}`, {
         headers: { "X-Auth-Token": apiKey }
       });

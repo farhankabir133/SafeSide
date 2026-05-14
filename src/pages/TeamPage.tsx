@@ -4,8 +4,9 @@ import { Card } from '@/src/components/ui/card';
 import { Badge } from '@/src/components/ui/badge';
 import { Skeleton } from '@/src/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
-import { Users, Calendar, Trophy, MapPin, Globe, ArrowLeft, Zap, Shield, BrainCircuit } from 'lucide-react';
+import { Users, Calendar, Trophy, MapPin, Globe, ArrowLeft, Zap, Shield, BrainCircuit, BarChart3, Info, Target, MousePointer2, AlertCircle, Award } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { cn } from '@/src/lib/utils';
 import ReactMarkdown from 'react-markdown';
 import { ai, MODEL_ID } from '@/src/services/geminiService';
 import { PredictionCard } from '@/src/components/PredictionCard';
@@ -162,7 +163,129 @@ Output in markdown.`;
           <TabsTrigger value="squad" className="h-full rounded-xl data-[state=active]:bg-yellow-500 data-[state=active]:text-black text-[10px] font-black uppercase tracking-widest px-8">Squad Roster</TabsTrigger>
           <TabsTrigger value="fixtures" className="h-full rounded-xl data-[state=active]:bg-yellow-500 data-[state=active]:text-black text-[10px] font-black uppercase tracking-widest px-8">Next Fixtures</TabsTrigger>
           <TabsTrigger value="intelligence" className="h-full rounded-xl data-[state=active]:bg-yellow-500 data-[state=active]:text-black text-[10px] font-black uppercase tracking-widest px-8">AI Tactical Audit</TabsTrigger>
+          <TabsTrigger value="performance" className="h-full rounded-xl data-[state=active]:bg-yellow-500 data-[state=active]:text-black text-[10px] font-black uppercase tracking-widest px-8">Performance Data</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="performance">
+          <div className="space-y-8">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <QuickPerformanceCard 
+                label="Dominance Index" 
+                value={`${team.statistics?.possession || 54}%`} 
+                sub="Avg Possession" 
+                icon={Zap}
+                accent="text-emerald-500"
+              />
+              <QuickPerformanceCard 
+                label="Strike Velocity" 
+                value={team.statistics?.shots || 12.5} 
+                sub="Shots Per Game" 
+                icon={Target}
+                accent="text-blue-500"
+              />
+              <QuickPerformanceCard 
+                label="Disciplinary Node" 
+                value={team.statistics?.fouls || 11.2} 
+                sub="Avg Fouls" 
+                icon={AlertCircle}
+                accent="text-red-500"
+              />
+            </div>
+
+            <Card className="bg-zinc-950 border-zinc-900 rounded-[40px] p-10 shadow-2xl relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-12 opacity-5 pointer-events-none">
+                <BarChart3 className="w-64 h-64" />
+              </div>
+              
+              <div className="relative z-10">
+                <div className="flex items-center gap-3 mb-12">
+                   <div className="bg-emerald-500/20 p-2 rounded-xl border border-emerald-500/20">
+                      <BarChart3 className="w-5 h-5 text-emerald-500" />
+                   </div>
+                   <div>
+                      <h3 className="text-2xl font-black uppercase tracking-tighter">Tactical Efficiency Matrix</h3>
+                      <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">Session Averages · SafeSide Verified</p>
+                   </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-20 gap-y-12">
+                  <TeamStatRow 
+                    label="Possession Rate" 
+                    value={team.statistics?.possession || 54} 
+                    unit="%" 
+                    max={100}
+                    color="bg-emerald-500"
+                    icon={MousePointer2}
+                  />
+                  <TeamStatRow 
+                    label="Offensive Volatility (Shots)" 
+                    value={team.statistics?.shots || 12.5} 
+                    max={25}
+                    color="bg-blue-500"
+                    icon={Target}
+                  />
+                  <TeamStatRow 
+                    label="Shot Calibration (On Target)" 
+                    value={team.statistics?.shotsOnTarget || 4.8} 
+                    max={15}
+                    color="bg-yellow-500"
+                    icon={Zap}
+                  />
+                  <TeamStatRow 
+                    label="Corner Pressure" 
+                    value={team.statistics?.corners || 5.2} 
+                    max={12}
+                    color="bg-purple-500"
+                    icon={Trophy}
+                  />
+                  <TeamStatRow 
+                    label="Engagement Friction (Fouls)" 
+                    value={team.statistics?.fouls || 11.2} 
+                    max={20}
+                    color="bg-red-500"
+                    icon={AlertCircle}
+                  />
+                  <TeamStatRow 
+                    label="Yellow Card Intensity" 
+                    value={team.statistics?.yellowCards || 1.8} 
+                    max={5}
+                    color="bg-yellow-600"
+                    icon={Shield}
+                  />
+                  <TeamStatRow 
+                    label="Tactical Overextension (Offsides)" 
+                    value={team.statistics?.offsides || 2.1} 
+                    max={10}
+                    color="bg-zinc-500"
+                    icon={Info}
+                  />
+                  <TeamStatRow 
+                    label="Set-Piece Frequency" 
+                    value={team.statistics?.freeKicks || 14.5} 
+                    max={25}
+                    color="bg-sky-500"
+                    icon={Zap}
+                  />
+                </div>
+
+                <div className="mt-20 p-10 bg-zinc-900/30 border border-zinc-800 rounded-[32px] flex flex-col md:flex-row items-center gap-8">
+                  <div className="w-20 h-20 bg-zinc-950 rounded-[28px] border border-zinc-800 flex items-center justify-center shrink-0 shadow-inner">
+                    <Trophy className="w-10 h-10 text-yellow-500" />
+                  </div>
+                  <div>
+                    <h5 className="text-xl font-black uppercase tracking-tight mb-2">Tactical Summary</h5>
+                    <p className="text-sm text-zinc-500 font-medium leading-relaxed max-w-2xl">
+                      Based on current tactical synchronization, {team.name} shows a {team.statistics?.possession > 50 ? 'dominant, possession-based' : 'counter-attacking'} profile. 
+                      Their foul rate suggests {team.statistics?.fouls > 12 ? 'high aggressive' : 'disciplined'} defensive engagement. 
+                      Update frequency: 24h cycle.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          </div>
+        </TabsContent>
+
 
         <TabsContent value="squad">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -272,3 +395,56 @@ Output in markdown.`;
     </div>
   );
 }
+
+const TeamStatRow = ({ label, value, unit = '', max = 100, color = 'bg-emerald-500', icon: Icon }: any) => {
+  const percentage = Math.min((value / max) * 100, 100);
+  
+  return (
+    <div className="space-y-3 group">
+      <div className="flex justify-between items-center px-1">
+        <div className="flex items-center gap-4">
+          {Icon && (
+            <div className="bg-zinc-900 p-2 rounded-xl border border-zinc-900 group-hover:border-zinc-700 transition-colors">
+              <Icon className={cn("w-4 h-4 text-zinc-500 group-hover:text-zinc-300")} />
+            </div>
+          )}
+          <div className="flex flex-col">
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-600 group-hover:text-zinc-400 transition-colors mb-1">{label}</span>
+            <span className="text-3xl font-black font-mono tracking-tighter text-white">{value}{unit}</span>
+          </div>
+        </div>
+        <div className="text-right">
+          <span className="text-[9px] font-black uppercase text-zinc-700 tracking-widest block mb-1">Target Ceiling</span>
+          <span className="text-sm font-black text-zinc-600">{max}{unit}</span>
+        </div>
+      </div>
+      <div className="h-2 w-full flex rounded-full overflow-hidden bg-zinc-950 border border-zinc-900">
+        <motion.div 
+          initial={{ width: 0 }}
+          animate={{ width: `${percentage}%` }}
+          transition={{ duration: 1, ease: "easeOut" }}
+          className={cn("h-full shadow-[0_0_15px_rgba(0,0,0,0.5)]", color)} 
+        />
+      </div>
+    </div>
+  );
+};
+
+const QuickPerformanceCard = ({ label, value, sub, icon: Icon, accent }: any) => (
+  <Card className="bg-zinc-950 border-zinc-900 p-6 rounded-[32px] flex flex-col gap-4 group hover:border-zinc-700 transition-all">
+    <div className="flex items-center justify-between">
+      <div className="bg-zinc-900 p-2 rounded-xl border border-zinc-800 group-hover:border-zinc-700 transition-colors">
+        <Icon className={cn("w-5 h-5", accent)} />
+      </div>
+      <Badge variant="outline" className="border-zinc-900 text-zinc-600 font-mono text-[8px] uppercase tracking-widest">Live Node</Badge>
+    </div>
+    <div>
+      <p className="text-[10px] font-black uppercase text-zinc-600 tracking-widest mb-1">{label}</p>
+      <div className="flex items-baseline gap-2">
+        <h4 className="text-3xl font-black tracking-tighter">{value}</h4>
+        <span className="text-[10px] font-bold text-zinc-500 uppercase">{sub}</span>
+      </div>
+    </div>
+  </Card>
+);
+

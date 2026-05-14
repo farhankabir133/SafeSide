@@ -3,28 +3,40 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { getLeagueBySlug } from '@/src/constants';
 import { usePredictions } from '@/src/hooks/usePredictions';
 import { PredictionCard } from '@/src/components/PredictionCard';
-import { Badge } from '@/src/components/ui/badge';
-import { Skeleton } from '@/src/components/ui/skeleton';
-import { Card, CardHeader, CardContent } from '@/src/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/src/components/ui/table";
-import { Trophy, Activity, Target, BrainCircuit, Globe, ArrowLeft, Users, Zap } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Card, CardHeader, CardContent } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Trophy, Activity, Target, BrainCircuit, Globe, ArrowLeft, Users, Zap, ShieldAlert, TrendingUp, ExternalLink } from 'lucide-react';
 import { motion } from 'motion/react';
-import { cn } from '@/src/lib/utils';
+import { cn } from '@/lib/utils';
 import ReactMarkdown from 'react-markdown';
 import { ai, MODEL_ID } from '@/src/services/geminiService';
+import { useAgent } from '@/src/contexts/AgentContext';
 
 export default function LeaguePage() {
   const { slug } = useParams();
   const navigate = useNavigate();
   const league = getLeagueBySlug(slug || '');
   const { matches, loading, predictions, runAnalysis, fetchMatches } = usePredictions();
+  const { openAgentWithMatch } = useAgent();
   
   const [standings, setStandings] = useState<any>(null);
   const [scorers, setScorers] = useState<any[]>([]);
   const [aiReport, setAiReport] = useState<string>('');
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [loadingStandings, setLoadingStandings] = useState(false);
+  const [loadingScorers, setLoadingScorers] = useState(false);
   const [activeTab, setActiveTab] = useState('fixtures');
+
+  useEffect(() => {
+    const hash = window.location.hash.replace('#', '');
+    if (['fixtures', 'standings', 'scorers', 'intelligence'].includes(hash)) {
+      setActiveTab(hash);
+    }
+  }, []);
 
   useEffect(() => {
     if (league) {
@@ -33,25 +45,35 @@ export default function LeaguePage() {
     }
   }, [league]);
 
+  const openStandingsInNewTab = () => {
+    window.open(`${window.location.origin}${window.location.pathname}#standings`, '_blank');
+  };
+
   const fetchStandings = async () => {
     if (!league) return;
+    setLoadingStandings(true);
     try {
       const res = await fetch(`/api/leagues/${league.id}/standings`);
       const data = await res.json();
       setStandings(data.standings?.[0]?.table || []);
     } catch (e) {
       console.error("Failed to fetch standings");
+    } finally {
+      setLoadingStandings(false);
     }
   };
 
   const fetchScorers = async () => {
     if (!league) return;
+    setLoadingScorers(true);
     try {
       const res = await fetch(`/api/leagues/${league.id}/scorers`);
       const data = await res.json();
       setScorers(data.scorers || []);
     } catch (e) {
       console.error("Failed to fetch scorers");
+    } finally {
+      setLoadingScorers(false);
     }
   };
 
@@ -117,10 +139,22 @@ Keep it professional, data-centric, and use the 'Safe Side' intelligence tone.`;
             <p className="text-[10px] font-black uppercase text-zinc-500 tracking-widest mb-1">Operational Area</p>
             <p className="text-xl font-black uppercase tracking-tight">{league.area}</p>
           </div>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={openStandingsInNewTab}
+            className="ml-4 border border-zinc-800 text-[10px] font-black uppercase tracking-widest text-zinc-500 hover:text-white"
+          >
+            <ExternalLink className="w-4 h-4 mr-2" />
+            Standings (New Tab)
+          </Button>
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-12">
+      <Tabs value={activeTab} onValueChange={(val) => {
+        setActiveTab(val);
+        window.location.hash = val;
+      }} className="space-y-12">
         <TabsList className="bg-zinc-950/50 border border-zinc-900 p-1 h-14 rounded-2xl w-full md:w-auto overflow-x-auto overflow-y-hidden">
           <TabsTrigger value="fixtures" className="h-full rounded-xl data-[state=active]:bg-yellow-500 data-[state=active]:text-black text-[10px] font-black uppercase tracking-widest px-8">Fixtures</TabsTrigger>
           <TabsTrigger value="standings" className="h-full rounded-xl data-[state=active]:bg-yellow-500 data-[state=active]:text-black text-[10px] font-black uppercase tracking-widest px-8">Standings</TabsTrigger>
@@ -128,7 +162,7 @@ Keep it professional, data-centric, and use the 'Safe Side' intelligence tone.`;
           <TabsTrigger value="intelligence" className="h-full rounded-xl data-[state=active]:bg-yellow-500 data-[state=active]:text-black text-[10px] font-black uppercase tracking-widest px-8">AI Intelligence</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="fixtures" className="space-y-8">
+        <TabsContent value="fixtures" className="space-y-12">
           {loading ? (
              <div className="space-y-4">
                 {[1, 2, 3].map(i => <Skeleton key={i} className="h-48 w-full bg-zinc-900 rounded-3xl" />)}
@@ -140,147 +174,194 @@ Keep it professional, data-centric, and use the 'Safe Side' intelligence tone.`;
               <p className="text-zinc-500 text-sm">Check back within 24-48 hours for updated signal scans.</p>
             </div>
           ) : (
-            <div className="space-y-6">
-              {leagueMatches.map(match => (
-                <PredictionCard 
-                  key={match.id}
-                  match={match}
-                  analysis={predictions[match.id] as any}
-                  onQueryAgent={() => {}}
-                  onViewDetails={() => navigate(`/teams/${match.homeTeam.id}`)} // Simple navigation for now
-                />
-              ))}
-            </div>
+            Object.entries(
+              leagueMatches.reduce((acc, match) => {
+                const date = new Date(match.utcDate).toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' });
+                if (!acc[date]) acc[date] = [];
+                acc[date].push(match);
+                return acc;
+              }, {} as Record<string, any[]>)
+            ).map(([date, matches]: [string, any[]]) => (
+              <div key={date} className="space-y-6">
+                <h3 className="text-xl font-black uppercase tracking-tight text-zinc-200 flex items-center gap-3">
+                  {date}
+                  <div className="h-[1px] flex-1 bg-zinc-900" />
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {matches.map((match: any) => (
+                    <PredictionCard 
+                      key={match.id}
+                      match={match}
+                      analysis={predictions[match.id] as any || {
+                        prediction: { win_probability: { home: 33, draw: 34, away: 33 }, scoreline: '?-?', safe_side: 'TBD', expected_goals: { home: 0, away: 0 } },
+                        risk_assessment: { level: 'Medium', primary_risk: 'Insufficient Data', safety_buffer: 'Scanning...' },
+                        reasoning_summary: 'Analysis pending initialization.'
+                      }}
+                      onQueryAgent={() => openAgentWithMatch(match)}
+                      onViewDetails={() => navigate(`/matches/${match.id}`)}
+                    />
+                  ))}
+                </div>
+              </div>
+            ))
           )}
         </TabsContent>
 
         <TabsContent value="standings" className="mt-8">
-          <Card className="bg-zinc-950 border-zinc-900 rounded-[32px] overflow-hidden border">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader className="bg-zinc-900/40">
-                  <TableRow className="border-zinc-900 hover:bg-transparent h-14">
-                    <TableHead className="w-16 text-[10px] font-black uppercase text-zinc-500 text-center tracking-widest px-6">Pos</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase text-zinc-500 tracking-widest">Strategic Node (Team)</TableHead>
-                    <TableHead className="text-center text-[10px] font-black uppercase text-zinc-500 tracking-widest px-4">P</TableHead>
-                    <TableHead className="text-center text-[10px] font-black uppercase text-zinc-500 tracking-widest px-4">W</TableHead>
-                    <TableHead className="text-center text-[10px] font-black uppercase text-zinc-500 tracking-widest px-4">D</TableHead>
-                    <TableHead className="text-center text-[10px] font-black uppercase text-zinc-500 tracking-widest px-4">L</TableHead>
-                    <TableHead className="text-center text-[10px] font-black uppercase text-zinc-500 tracking-widest px-4">GD</TableHead>
-                    <TableHead className="text-center text-[10px] font-black uppercase text-zinc-500 tracking-widest px-6 bg-zinc-900/60">Pts</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {standings && standings.length > 0 ? standings.map((item: any) => {
-                    const isTopFour = item.position <= 4;
-                    const isRelegation = item.position >= (standings.length - 2);
-
-                    return (
-                      <TableRow 
-                        key={item.team.id} 
-                        className={cn(
-                          "border-zinc-900 hover:bg-zinc-900/40 transition-all cursor-pointer group h-16",
-                          isTopFour && "bg-emerald-500/[0.03]",
-                          isRelegation && "bg-red-500/[0.03]"
-                        )}
-                        onClick={() => navigate(`/teams/${item.team.id}`)}
-                      >
-                        <TableCell className="text-center px-6">
-                          <div className="relative inline-flex items-center justify-center">
-                            <span className={cn(
-                              "text-sm font-black transition-colors",
-                              isTopFour ? "text-emerald-500" : isRelegation ? "text-red-500" : "text-zinc-500"
-                            )}>
-                              {item.position}
-                            </span>
-                            {isTopFour && <div className="absolute -left-3 w-1 h-3 bg-emerald-500 rounded-full" />}
-                            {isRelegation && <div className="absolute -left-3 w-1 h-3 bg-red-500 rounded-full" />}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 bg-zinc-900 rounded-xl flex items-center justify-center border border-zinc-800 group-hover:border-zinc-700 transition-colors overflow-hidden p-2">
-                              {item.team.crest ? (
-                                <img 
-                                  src={item.team.crest} 
-                                  alt={item.team.name} 
-                                  className="w-full h-full object-contain" 
-                                  referrerPolicy="no-referrer"
-                                />
-                              ) : (
-                                <Users className="w-4 h-4 text-zinc-700" />
-                              )}
-                            </div>
-                            <div>
-                               <span className="font-black text-sm uppercase tracking-tight group-hover:text-yellow-500 transition-colors block">
-                                 {item.team.name}
-                               </span>
-                               {isTopFour && (
-                                 <span className="text-[8px] font-black text-emerald-500/60 uppercase tracking-widest">UCL Qualification Zone</span>
-                               )}
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-center font-mono text-zinc-500 font-bold">{item.playedGames}</TableCell>
-                        <TableCell className="text-center font-mono text-emerald-500/80 font-bold">{item.won}</TableCell>
-                        <TableCell className="text-center font-mono text-zinc-500 font-bold">{item.draw}</TableCell>
-                        <TableCell className="text-center font-mono text-red-500/80 font-bold">{item.lost}</TableCell>
-                        <TableCell className="text-center font-mono text-zinc-400 font-bold">
-                          {item.goalDifference > 0 ? `+${item.goalDifference}` : item.goalDifference}
-                        </TableCell>
-                        <TableCell className="text-center px-6 bg-zinc-900/20">
-                          <span className="text-lg font-black text-white group-hover:text-yellow-500 transition-colors">{item.points}</span>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  }) : standings === null ? (
-                    Array(10).fill(0).map((_, i) => (
-                      <TableRow key={i} className="h-16 border-zinc-900">
-                        <TableCell colSpan={8} className="px-6"><Skeleton className="h-8 w-full bg-zinc-900 rounded-lg" /></TableCell>
-                      </TableRow>
-                    ))
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={8} className="h-32 text-center text-zinc-500 font-black uppercase tracking-widest text-xs">
-                         Signal Blocked: No Standings Data Available
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
+          {loadingStandings ? (
+            <div className="space-y-4">
+              <Skeleton className="h-96 w-full bg-zinc-900 rounded-[48px]" />
             </div>
-          </Card>
+          ) : (
+            <Card className="bg-zinc-950 border-zinc-900 rounded-[48px] overflow-hidden border p-1 opacity-90 shadow-2xl">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader className="bg-black/20">
+                    <TableRow className="border-zinc-900 hover:bg-transparent h-16">
+                      <TableHead className="w-20 text-[10px] font-black uppercase text-zinc-600 text-center tracking-widest px-6">Rank</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase text-zinc-600 tracking-widest">Node Identity</TableHead>
+                      <TableHead className="text-center text-[10px] font-black uppercase text-zinc-600 tracking-widest px-4">GP</TableHead>
+                      <TableHead className="text-center text-[10px] font-black uppercase text-zinc-600 tracking-widest px-4 text-emerald-500/60">W</TableHead>
+                      <TableHead className="text-center text-[10px] font-black uppercase text-zinc-600 tracking-widest px-4">D</TableHead>
+                      <TableHead className="text-center text-[10px] font-black uppercase text-zinc-600 tracking-widest px-4 text-red-500/60">L</TableHead>
+                      <TableHead className="text-center text-[10px] font-black uppercase text-zinc-600 tracking-widest px-4">G-D</TableHead>
+                      <TableHead className="text-center text-[10px] font-black uppercase text-zinc-600 tracking-widest px-8 bg-zinc-900/40">Total Pts</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {standings && standings.length > 0 ? standings.map((item: any) => {
+                      const isUCL = item.position <= 4;
+                      const isUEL = item.position > 4 && item.position <= 6;
+                      const isRelegation = item.position >= (standings.length - 2);
+
+                      return (
+                        <TableRow 
+                          key={item.team.id} 
+                          className={cn(
+                            "border-zinc-900/50 hover:bg-zinc-900/30 transition-all cursor-pointer group h-16 relative",
+                            isUCL && "bg-emerald-500/[0.04]",
+                            isUEL && "bg-blue-500/[0.04]",
+                            isRelegation && "bg-red-500/[0.04]"
+                          )}
+                          onClick={() => navigate(`/teams/${item.team.id}`)}
+                        >
+                          <TableCell className="text-center px-6 relative">
+                            <span className={cn(
+                              "text-sm font-black transition-colors font-mono",
+                              isUCL ? "text-emerald-500" : isUEL ? "text-blue-500" : isRelegation ? "text-red-500" : "text-zinc-500"
+                            )}>
+                              {item.position.toString().padStart(2, '0')}
+                            </span>
+                            {isUCL && <div className="absolute left-0 top-1/4 bottom-1/4 w-1 bg-emerald-500 rounded-r shadow-[0_0_10px_rgba(16,185,129,0.5)]" />}
+                            {isUEL && <div className="absolute left-0 top-1/4 bottom-1/4 w-1 bg-blue-500 rounded-r shadow-[0_0_10px_rgba(59,130,246,0.5)]" />}
+                            {isRelegation && <div className="absolute left-0 top-1/4 bottom-1/4 w-1 bg-red-500 rounded-r shadow-[0_0_10px_rgba(239,68,68,0.5)]" />}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-4">
+                              <div className="w-10 h-10 bg-zinc-950 rounded-xl flex items-center justify-center border border-zinc-900 group-hover:border-zinc-700 transition-colors overflow-hidden p-2 shadow-inner">
+                                <img src={item.team.crest} alt="" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+                              </div>
+                              <div>
+                                 <span className="font-black text-sm uppercase tracking-tight group-hover:text-yellow-500 transition-colors block">
+                                   {item.team.name}
+                                 </span>
+                                 {isUCL && <span className="text-[8px] font-black text-emerald-500/60 uppercase tracking-[0.2em] flex items-center gap-1"><TrendingUp className="w-2 h-2"/> UCL Qualification</span>}
+                                 {isRelegation && <span className="text-[8px] font-black text-red-500/60 uppercase tracking-[0.2em] flex items-center gap-1"><ShieldAlert className="w-2 h-2"/> Demotion Threat</span>}
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center font-mono text-zinc-500 font-bold">{item.playedGames}</TableCell>
+                          <TableCell className="text-center font-mono text-emerald-500/80 font-bold">{item.won}</TableCell>
+                          <TableCell className="text-center font-mono text-zinc-500 font-bold">{item.draw}</TableCell>
+                          <TableCell className="text-center font-mono text-red-500/80 font-bold">{item.lost}</TableCell>
+                          <TableCell className="text-center font-mono text-zinc-400 font-bold">
+                            {item.goalDifference > 0 ? `+${item.goalDifference}` : item.goalDifference}
+                          </TableCell>
+                          <TableCell className="text-center px-8 bg-zinc-900/30">
+                            <span className="text-2xl font-black text-white group-hover:text-yellow-500 transition-colors">{item.points}</span>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    }) : (
+                      Array(12).fill(0).map((_, i) => (
+                        <TableRow key={i} className="h-16 border-zinc-900">
+                          <TableCell colSpan={8} className="px-6"><Skeleton className="h-8 w-full bg-zinc-900 rounded-xl" /></TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="scorers">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {scorers.length > 0 ? (
-              scorers.map((s, i) => (
+          {loadingScorers ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {Array(6).fill(0).map((_, i) => <Skeleton key={i} className="h-40 w-full bg-zinc-900 rounded-3xl" />)}
+            </div>
+          ) : scorers.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {scorers.map((s, i) => (
                 <motion.div
                   key={s.player.id}
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.05 }}
                 >
-                  <Card className="bg-zinc-950 border-zinc-900 p-6 rounded-3xl hover:border-zinc-700 transition-all flex items-center gap-4">
-                    <div className="w-16 h-16 bg-zinc-900 rounded-2xl flex items-center justify-center border border-zinc-800 text-2xl font-black text-zinc-800">
-                      {s.player.name.charAt(0)}
+                  <Card 
+                    className="bg-zinc-950 border-zinc-900 p-6 rounded-[32px] hover:border-yellow-500/30 transition-all flex flex-col gap-6 relative group cursor-pointer shadow-xl overflow-hidden"
+                    onClick={() => navigate(`/teams/${s.team.id}`)}
+                  >
+                    <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                      <Target className="w-24 h-24" />
                     </div>
-                    <div>
-                      <h4 className="font-black uppercase tracking-tight text-lg leading-tight mb-1">{s.player.name}</h4>
-                      <p className="text-[10px] font-black uppercase text-zinc-600 tracking-widest">{s.team.name}</p>
-                      <div className="mt-3 flex items-center gap-2">
-                        <Zap className="w-3 h-3 text-yellow-500" />
-                        <span className="text-sm font-black text-yellow-500">{s.goals} GOALS</span>
+
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="w-16 h-16 bg-zinc-900 rounded-2xl flex items-center justify-center border border-zinc-800 text-3xl font-black text-zinc-400 group-hover:text-yellow-500 transition-colors relative">
+                          <span className="relative z-10">{s.player.name.charAt(0)}</span>
+                          <div className="absolute -top-2 -left-2 w-8 h-8 bg-zinc-950 border border-zinc-800 rounded-lg flex items-center justify-center text-[10px] font-black text-zinc-500 group-hover:text-yellow-500">
+                            {(i + 1).toString().padStart(2, '0')}
+                          </div>
+                        </div>
+                        <div>
+                          <h4 className="font-black uppercase tracking-tight text-xl leading-[1.1] mb-1 group-hover:text-white transition-colors">
+                            {s.player.name.split(' ').map((n: string, idx: number) => idx === s.player.name.split(' ').length - 1 ? <span key={idx} className="text-zinc-500 block">{n}</span> : n + ' ')}
+                          </h4>
+                          <div className="flex items-center gap-2">
+                             <img src={s.team.crest} className="w-4 h-4 object-contain" referrerPolicy="no-referrer" />
+                             <span className="text-[10px] font-black uppercase text-zinc-600 tracking-widest">{s.team.name}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 mt-auto">
+                      <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800/50 flex flex-col items-center justify-center">
+                        <p className="text-[9px] font-black uppercase text-zinc-600 tracking-widest mb-1">Goals</p>
+                        <div className="flex items-center gap-2">
+                          <Zap className="w-3 h-3 text-yellow-500 fill-yellow-500" />
+                          <span className="text-2xl font-black font-mono text-yellow-500">{s.goals}</span>
+                        </div>
+                      </div>
+                      <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800/50 flex flex-col items-center justify-center">
+                        <p className="text-[9px] font-black uppercase text-zinc-600 tracking-widest mb-1">Impact</p>
+                        <span className="text-2xl font-black font-mono text-white">{(s.goals * 0.85).toFixed(1)}</span>
                       </div>
                     </div>
                   </Card>
                 </motion.div>
-              ))
-            ) : (
-              Array(6).fill(0).map((_, i) => <Skeleton key={i} className="h-24 w-full bg-zinc-900 rounded-3xl" />)
-            )}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="p-24 text-center border-2 border-dashed border-zinc-900 rounded-[40px] bg-zinc-950/50">
+              <Target className="w-12 h-12 text-zinc-800 mx-auto mb-6" />
+              <h3 className="text-2xl font-black uppercase tracking-tighter mb-2">No Strike Data Encrypted</h3>
+              <p className="text-zinc-500 text-sm">Target acquisition in progress. Check back shortly.</p>
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="intelligence">

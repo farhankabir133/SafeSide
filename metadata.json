@@ -1,6 +1,6 @@
 {
-  "name": "Safe Side Football Prediction MVP",
-  "description": "AI-powered football match analysis and prediction dashboard with confidence scoring and risk assessment.",
+  "name": "SafeSide Tactical Predictor",
+  "description": "Tactical 'Command Center' for high-density football analysis. Deep-learning POISSON modeling meets real-time risk assessment.",
   "requestFramePermissions": [],
-  "majorCapabilities": []
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
