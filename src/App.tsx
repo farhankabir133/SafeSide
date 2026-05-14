@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { usePredictions } from "@/src/hooks/usePredictions";
 import { PredictionCard } from "@/src/components/PredictionCard";
 import { ChatInterface } from "@/src/components/ChatInterface";
@@ -15,6 +16,7 @@ import { cn } from "@/src/lib/utils";
 import React, { useMemo, useState, useEffect } from "react";
 
 export default function App() {
+  const navigate = useNavigate();
   const { matches, loading, error, predictions, runAnalysis, stats, fetchMatches, isDemo, rateLimit, lastSyncedAt, historicalData } = usePredictions();
   const [expandedLeagues, setExpandedLeagues] = useState<Record<string, boolean>>({});
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -77,8 +79,7 @@ export default function App() {
   };
 
   const handleInspectMatch = (matchId: string) => {
-    setDetailMatchId(matchId);
-    setIsDetailModalOpen(true);
+    navigate(`/matches/${matchId}`);
   };
 
   const getStatusBadge = (status: string) => {

@@ -2,6 +2,7 @@ import React from 'react';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import App from './App';
 import { MainLayout } from './layouts/MainLayout';
+import MatchDetailPage from './pages/MatchDetailPage';
 import AuthPage from './pages/AuthPage';
 import LeaguesIndexPage from './pages/LeaguesIndexPage';
 import LeaguePage from './pages/LeaguePage';
@@ -32,6 +33,7 @@ export const router = createBrowserRouter([
       { path: '/leagues', element: <LeaguesIndexPage /> },
       { path: '/leagues/:slug', element: <LeaguePage /> },
       { path: '/teams/:id', element: <TeamPage /> },
+      { path: '/matches/:id', element: <MatchDetailPage /> },
       { 
         path: '/tools/bankroll', 
         element: (

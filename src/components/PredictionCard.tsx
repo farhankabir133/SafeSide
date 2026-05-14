@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardFooter } from '@/src/components/ui/c
 import { Badge } from '@/src/components/ui/badge';
 import { Progress } from '@/src/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/src/components/ui/tabs';
+import { useNavigate } from 'react-router-dom';
 import { 
   Zap, 
   AlertTriangle, 
@@ -17,7 +18,8 @@ import {
   AlertCircle,
   BarChart3,
   Dna,
-  BrainCircuit
+  BrainCircuit,
+  ExternalLink
 } from 'lucide-react';
 import { MatchAnalysis } from '@/src/services/geminiService';
 import { Skeleton } from '@/src/components/ui/skeleton';
@@ -38,6 +40,7 @@ interface PredictionCardProps {
 }
 
 export const PredictionCard: React.FC<PredictionCardProps> = ({ match, analysis, onQueryAgent, onViewDetails, isFlashing }) => {
+  const navigate = useNavigate();
   const { prediction, risk_assessment, micro_events, reasoning_summary, form_analysis } = analysis;
   const [h2hData, setH2hData] = useState<any>(null);
   const [h2hLoading, setH2hLoading] = useState(false);
@@ -504,10 +507,11 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({ match, analysis,
          
          <div className="flex items-center gap-3 order-1 md:order-2 w-full md:w-auto">
             <button 
-              onClick={onViewDetails}
-              className="flex-1 md:flex-none h-12 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 font-black uppercase text-[10px] tracking-widest px-8 rounded-2xl border border-zinc-800 transition-all"
+              onClick={() => navigate(`/matches/${match.id}`)}
+              className="flex-1 md:flex-none h-12 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 font-black uppercase text-[10px] tracking-widest px-8 rounded-2xl border border-zinc-800 transition-all flex items-center justify-center gap-2"
             >
-              Tactical Roster
+              <ExternalLink className="w-4 h-4" />
+              Full Report
             </button>
             <button 
               onClick={onQueryAgent}

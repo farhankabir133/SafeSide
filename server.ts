@@ -351,6 +351,160 @@ async function startServer() {
     }
   });
 
+  // Lineups Proxy
+  app.get("/api/matches/:id/lineups", async (req, res) => {
+    try {
+      let apiKey = process.env.FOOTBALL_API_KEY || process.env.FOOTBALL_DATA_API_KEY;
+      const { id } = req.params;
+
+      const placeholders = ["YOUR_KEY_HERE", "MY_API_KEY", "FOOTBALL_API_KEY", ""];
+      if (apiKey && placeholders.includes(apiKey.trim())) apiKey = undefined;
+
+      if (!apiKey) {
+        // MOCK: realistic lineup data
+        return res.json({
+          mock: true,
+          homeTeam: {
+            formation: "4-3-3",
+            startXI: [
+              { id: 1, name: "David Raya", position: "GK", shirtNumber: 1, nationality: "Spain" },
+              { id: 2, name: "Ben White", position: "RB", shirtNumber: 4, nationality: "England" },
+              { id: 3, name: "William Saliba", position: "CB", shirtNumber: 12, nationality: "France" },
+              { id: 4, name: "Gabriel Magalhães", position: "CB", shirtNumber: 6, nationality: "Brazil" },
+              { id: 5, name: "Oleksandr Zinchenko", position: "LB", shirtNumber: 35, nationality: "Ukraine" },
+              { id: 6, name: "Declan Rice", position: "CM", shirtNumber: 41, nationality: "England" },
+              { id: 7, name: "Thomas Partey", position: "CM", shirtNumber: 5, nationality: "Ghana" },
+              { id: 8, name: "Martin Ødegaard", position: "CAM", shirtNumber: 8, nationality: "Norway" },
+              { id: 9, name: "Bukayo Saka", position: "RW", shirtNumber: 7, nationality: "England" },
+              { id: 10, name: "Leandro Trossard", position: "LW", shirtNumber: 19, nationality: "Belgium" },
+              { id: 11, name: "Kai Havertz", position: "ST", shirtNumber: 29, nationality: "Germany" }
+            ],
+            bench: [
+              { id: 12, name: "Aaron Ramsdale", position: "GK", shirtNumber: 32 },
+              { id: 13, name: "Kieran Tierney", position: "LB", shirtNumber: 3 },
+              { id: 14, name: "Eddie Nketiah", position: "ST", shirtNumber: 14 },
+            ]
+          },
+          awayTeam: {
+            formation: "4-2-3-1",
+            startXI: [
+              { id: 31, name: "Ederson", position: "GK", shirtNumber: 31, nationality: "Brazil" },
+              { id: 32, name: "Kyle Walker", position: "RB", shirtNumber: 2, nationality: "England" },
+              { id: 33, name: "Rúben Dias", position: "CB", shirtNumber: 3, nationality: "Portugal" },
+              { id: 34, name: "Manuel Akanji", position: "CB", shirtNumber: 25, nationality: "Switzerland" },
+              { id: 35, name: "Joško Gvardiol", position: "LB", shirtNumber: 24, nationality: "Croatia" },
+              { id: 36, name: "Rodri", position: "DM", shirtNumber: 16, nationality: "Spain" },
+              { id: 37, name: "Kevin De Bruyne", position: "CM", shirtNumber: 17, nationality: "Belgium" },
+              { id: 38, name: "Phil Foden", position: "CAM", shirtNumber: 47, nationality: "England" },
+              { id: 39, name: "Bernardo Silva", position: "RW", shirtNumber: 20, nationality: "Portugal" },
+              { id: 40, name: "Jack Grealish", position: "LW", shirtNumber: 10, nationality: "England" },
+              { id: 41, name: "Erling Haaland", position: "ST", shirtNumber: 9, nationality: "Norway" }
+            ],
+            bench: [
+              { id: 42, name: "Stefan Ortega", position: "GK", shirtNumber: 18 },
+              { id: 43, name: "Mateo Kovacic", position: "CM", shirtNumber: 8 },
+            ]
+          }
+        });
+      }
+
+      // football-data.org does not provide lineups on free tier
+      return res.json({ message: "Lineup data requires paid football-data.org subscription", mock: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Odds Proxy
+  app.get("/api/odds/:matchId", async (req, res) => {
+    // Mock odds data — no external API needed for MVP
+    return res.json({
+      bookmakers: [
+        {
+          name: "Bet365",
+          logo: null,
+          markets: {
+            h2h: { home: 2.10, draw: 3.40, away: 3.60 },
+            over_under: { over: 1.85, under: 1.95 },
+            btts: { yes: 1.75, no: 2.05 }
+          }
+        },
+        {
+          name: "Betfair",
+          logo: null,
+          markets: {
+            h2h: { home: 2.14, draw: 3.45, away: 3.55 },
+            over_under: { over: 1.87, under: 1.93 },
+            btts: { yes: 1.78, no: 2.02 }
+          }
+        },
+        {
+          name: "Pinnacle",
+          logo: null,
+          markets: {
+            h2h: { home: 2.17, draw: 3.38, away: 3.62 },
+            over_under: { over: 1.88, under: 1.94 },
+            btts: { yes: 1.80, no: 2.00 }
+          }
+        }
+      ]
+    });
+  });
+
+  // Weather Proxy
+  app.get("/api/weather/:city", async (req, res) => {
+    const { city } = req.params;
+    const apiKey = process.env.OPENWEATHER_API_KEY;
+
+    const getWindDir = (deg: number) => {
+      const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+      return dirs[Math.round(deg / 45) % 8];
+    };
+
+    if (!apiKey || apiKey.includes("YOUR_KEY")) {
+      // Return mock weather data
+      return res.json({
+        temp: 16,
+        feelsLike: 14,
+        description: "Partly Cloudy",
+        icon: "02d",
+        humidity: 68,
+        windSpeed: 18,         // km/h
+        windDirection: "NW",
+        visibility: 10,        // km
+        conditions: "overcast clouds",
+        impact: "LOW"          // LOW / MEDIUM / HIGH pitch impact
+      });
+    }
+
+    try {
+      const response = await fetch(
+        `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&appid=${apiKey}&units=metric`
+      );
+      const data = (await response.json()) as any;
+
+      const windSpeed = Math.round(data.wind?.speed * 3.6);  // m/s → km/h
+      let impact = "LOW";
+      if (windSpeed > 40 || data.weather?.[0]?.main === "Rain" || data.weather?.[0]?.main === "Snow") impact = "HIGH";
+      else if (windSpeed > 25) impact = "MEDIUM";
+
+      res.json({
+        temp: Math.round(data.main.temp),
+        feelsLike: Math.round(data.main.feels_like),
+        description: data.weather?.[0]?.description,
+        icon: data.weather?.[0]?.icon,
+        humidity: data.main.humidity,
+        windSpeed,
+        windDirection: getWindDir(data.wind?.deg),
+        visibility: Math.round((data.visibility || 10000) / 1000),
+        conditions: data.weather?.[0]?.main,
+        impact
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

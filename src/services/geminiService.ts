@@ -40,7 +40,7 @@ export const MODEL_ID = "gemini-2.0-flash";
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY as string);
 export const ai = genAI.getGenerativeModel({ model: MODEL_ID });
 
-export async function analyzeMatch(matchData: any, h2hData: any): Promise<MatchAnalysis> {
+export const buildMatchAnalysisPrompt = (matchData: any, h2hData: any) => {
   const h2hSummary = h2hData ? `
 Head-to-Head Stats:
 Total Matches: ${h2hData.aggregates.numberOfMatches}
@@ -49,7 +49,7 @@ ${matchData.awayTeam.name} Wins: ${h2hData.aggregates.awayTeam.wins}
 Recent Result: ${h2hData.matches && h2hData.matches[0] ? h2hData.matches[0].homeTeam.name + ' ' + h2hData.matches[0].score.fullTime.home + '-' + h2hData.matches[0].score.fullTime.away + ' ' + h2hData.matches[0].awayTeam.name : 'N/A' }
 ` : "Head-to-Head data not available.";
 
-  const prompt = `Role: Professional Tactical Analyst & Probabilistic Modeler.
+  return `Role: Professional Tactical Analyst & Probabilistic Modeler.
 Task: Perform a deep-scan intelligence report for the following engagement.
 
 Engagement: ${matchData.homeTeam.name} vs ${matchData.awayTeam.name}
@@ -92,6 +92,10 @@ Output Schema (Strict JSON):
   ],
   "reasoning_summary": "string"
 }`;
+};
+
+export async function analyzeMatch(matchData: any, h2hData: any): Promise<MatchAnalysis> {
+  const prompt = buildMatchAnalysisPrompt(matchData, h2hData);
 
   const response = await ai.generateContent({
     contents: [{ role: 'user', parts: [{ text: prompt }] }],

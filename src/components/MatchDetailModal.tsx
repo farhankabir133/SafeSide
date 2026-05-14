@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, MapPin, User, Trophy, Calendar, Info, Users, History, Activity, BarChart3, Target, ShieldAlert } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { X, MapPin, User, Trophy, Calendar, Info, Users, History, Activity, BarChart3, Target, ShieldAlert, ExternalLink } from 'lucide-react';
 import { Button } from '@/src/components/ui/button';
 import { Badge } from '@/src/components/ui/badge';
 import { ScrollArea } from '@/src/components/ui/scroll-area';
@@ -68,6 +69,8 @@ export const MatchDetailModal: React.FC<MatchDetailModalProps> = ({ isOpen, onCl
       setLoading(false);
     }
   };
+
+  const navigate = useNavigate();
 
   if (!isOpen) return null;
 
@@ -379,7 +382,14 @@ export const MatchDetailModal: React.FC<MatchDetailModalProps> = ({ isOpen, onCl
             </div>
           </ScrollArea>
 
-          <div className="p-6 border-t border-zinc-900 bg-zinc-950 flex justify-end">
+          <div className="p-6 border-t border-zinc-900 bg-zinc-950 flex justify-end gap-3">
+            <Button
+              onClick={() => { onClose(); navigate(`/matches/${matchId}`); }}
+              className="bg-yellow-500 hover:bg-yellow-400 text-black font-black uppercase tracking-tighter h-12 px-8 rounded-2xl"
+            >
+              <ExternalLink className="w-4 h-4 mr-2" />
+              Full Intelligence Report
+            </Button>
             <Button onClick={onClose} className="bg-zinc-900 border-zinc-800 text-[10px] uppercase font-black tracking-widest hover:bg-zinc-800 text-white h-12 px-8 rounded-2xl">
               Deactivate Briefing
             </Button>
