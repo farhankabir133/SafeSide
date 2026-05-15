@@ -193,9 +193,14 @@ Keep it professional, data-centric, and use the 'Safe Side' intelligence tone.`;
                       key={match.id}
                       match={match}
                       analysis={predictions[match.id] as any || {
-                        prediction: { win_probability: { home: 33, draw: 34, away: 33 }, scoreline: '?-?', safe_side: 'TBD', expected_goals: { home: 0, away: 0 } },
-                        risk_assessment: { level: 'Medium', primary_risk: 'Insufficient Data', safety_buffer: 'Scanning...' },
-                        reasoning_summary: 'Analysis pending initialization.'
+                        prediction: { 
+                          win_probability: { home: 45, draw: 25, away: 30 }, 
+                          scoreline: 'H-A', 
+                          safe_side: 'PENDING SCAN', 
+                          expected_goals: { home: 0, away: 0 } 
+                        },
+                        risk_assessment: { level: 'Medium', primary_risk: 'Quantum Variance', safety_buffer: 'Awaiting AI Input' },
+                        reasoning_summary: 'Neural node awaiting tactical initialization.'
                       }}
                       onQueryAgent={() => openAgentWithMatch(match)}
                       onViewDetails={() => navigate(`/matches/${match.id}`)}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrainCircuit, Globe, LogIn, LayoutDashboard, Settings, LogOut, Menu, User, Zap } from 'lucide-react';
+import { BrainCircuit, Globe, LogIn, LayoutDashboard, Settings, LogOut, Menu, User, Zap, Search } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/src/components/ui/button';
 import { Separator } from '@/src/components/ui/separator';
@@ -54,6 +54,13 @@ export const Navbar: React.FC<NavbarProps> = ({ accuracy, leagueCount }) => {
           <Separator orientation="vertical" className="h-8 bg-zinc-800" />
           
           <div className="flex items-center gap-6">
+            <button 
+              onClick={() => window.dispatchEvent(new CustomEvent('openConsole'))}
+              className="p-2 border border-zinc-800 rounded-xl bg-zinc-900/50 hover:bg-zinc-800 transition-colors group"
+            >
+              <Search className="w-4 h-4 text-zinc-500 group-hover:text-white" />
+            </button>
+
             <button 
               onClick={() => setIsChatOpen(true)}
               className="group flex flex-col items-center hover:opacity-80 transition-all"

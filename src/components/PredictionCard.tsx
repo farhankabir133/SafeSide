@@ -62,13 +62,45 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({ match, analysis,
   };
 
   const isLive = ['IN_PLAY', 'PAUSED', 'LIVE'].includes(match.status);
+  const isPending = prediction.safe_side === 'PENDING SCAN';
 
   return (
     <Card className={cn(
-      "bg-[#1a1a1a] border-none text-zinc-100 overflow-hidden rounded-2xl group/card transition-all duration-500 shadow-xl relative",
+      "bg-[#1a1a1a] border border-zinc-900 shadow-2xl text-zinc-100 overflow-hidden rounded-[32px] group/card transition-all duration-500 relative",
       highlighted && "ring-2 ring-yellow-500 shadow-[0_0_40px_rgba(234,179,8,0.3)] scale-[1.03] z-50",
-      highlighted && "animate-pulse-subtle"
+      highlighted && "animate-pulse-subtle",
+      isPending && "opacity-80"
     )}>
+      {/* Tactical Telemetry Overlay */}
+      <div className="absolute inset-0 pointer-events-none opacity-[0.03] flex items-center justify-center overflow-hidden">
+        <div className="grid grid-cols-10 gap-4 w-full h-full rotate-12">
+          {Array(100).fill(0).map((_, i) => (
+            <div key={i} className="text-[6px] font-mono whitespace-nowrap">
+              {Math.random().toString(16).substring(2, 10).toUpperCase()}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {isPending && (
+        <div className="absolute inset-0 z-30 bg-zinc-950/60 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center">
+          <div className="relative mb-4">
+            <BrainCircuit className="w-10 h-10 text-yellow-500 animate-pulse" />
+            <motion.div 
+              animate={{ rotate: 360 }}
+              transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+              className="absolute inset-0 border-t border-yellow-500/40 rounded-full scale-150"
+            />
+          </div>
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white mb-1">Tactical Scan In Progress</p>
+          <div className="flex gap-1">
+            <div className="w-1 h-1 bg-yellow-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
+            <div className="w-1 h-1 bg-yellow-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
+            <div className="w-1 h-1 bg-yellow-500 rounded-full animate-bounce" />
+          </div>
+        </div>
+      )}
+
       {highlighted && (
         <>
           <motion.div 
@@ -238,18 +270,21 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({ match, analysis,
             <span className="text-white text-[11px] font-bold">{prediction.win_probability.home}%</span>
           </div>
           
-          <div className="flex-1 h-1.5 bg-[#2a2a2a] rounded-full overflow-hidden flex">
-            <div 
-              className="h-full bg-[#3d3d3d]" 
-              style={{ width: `${prediction.win_probability.home}%` }}
+          <div className="flex-1 h-1.5 bg-[#2a2a2a] rounded-full overflow-hidden flex shadow-inner">
+            <motion.div 
+              initial={{ width: 0 }}
+              animate={{ width: `${prediction.win_probability.home}%` }}
+              className="h-full bg-emerald-500" 
             />
-            <div 
-              className="h-full bg-[#2a2a2a]" 
-              style={{ width: `${prediction.win_probability.draw}%` }}
+            <motion.div 
+              initial={{ width: 0 }}
+              animate={{ width: `${prediction.win_probability.draw}%` }}
+              className="h-full bg-zinc-700" 
             />
-            <div 
-              className="h-full bg-[#444]" 
-              style={{ width: `${prediction.win_probability.away}%` }}
+            <motion.div 
+              initial={{ width: 0 }}
+              animate={{ width: `${prediction.win_probability.away}%` }}
+              className="h-full bg-yellow-500" 
             />
           </div>
 
@@ -282,9 +317,12 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({ match, analysis,
               className="overflow-hidden"
             >
               <div className="px-6 pb-6 pt-2 space-y-4">
-                 <div className="p-4 bg-[#111] rounded-xl border border-zinc-900">
-                    <p className="text-xs text-zinc-400 leading-relaxed font-medium">
-                      <span className="text-yellow-500 font-bold uppercase mr-2 tracking-tighter">Summary:</span>
+                 <div className="p-4 bg-zinc-900/50 backdrop-blur-md rounded-2xl border border-zinc-800/50 group-hover:border-yellow-500/20 transition-colors relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-2 opacity-5">
+                       <Shield className="w-8 h-8" />
+                    </div>
+                    <p className="text-[11px] text-zinc-400 leading-relaxed font-medium relative z-10">
+                      <span className="text-yellow-500 font-black uppercase mr-2 tracking-widest text-[9px]">Decision Summary:</span>
                       {analysis.reasoning_summary}
                     </p>
                  </div>

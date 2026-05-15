@@ -14,6 +14,8 @@ import { Card } from "@/components/ui/card";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "@/lib/utils";
 import { HeroSection } from "@/src/components/HeroSection";
+import { TacticalTicker } from "@/src/components/TacticalTicker";
+import { CommandConsole } from "@/src/components/CommandCenter/CommandConsole";
 import { useAgent } from "@/src/contexts/AgentContext";
 import React, { useMemo, useState, useEffect } from "react";
 
@@ -31,6 +33,30 @@ export default function App() {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
   const [detectedMatchId, setDetectedMatchId] = useState<string | null>(null);
+  const [isCommandConsoleOpen, setIsCommandConsoleOpen] = useState(false);
+  
+  // Global shortcut for command console
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setIsCommandConsoleOpen(true);
+      }
+      if (e.key === '/' && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
+        e.preventDefault();
+        setIsCommandConsoleOpen(true);
+      }
+    };
+    const handleOpenConsole = () => setIsCommandConsoleOpen(true);
+    
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('openConsole', handleOpenConsole);
+    
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('openConsole', handleOpenConsole);
+    };
+  }, []);
 
   // Detect score changes for live matches
   const prevScores = React.useRef<Record<string, string>>({});
@@ -232,6 +258,7 @@ export default function App() {
 
   return (
     <div className="bg-[#0a0a0a] text-zinc-100 font-sans selection:bg-yellow-500 selection:text-black min-h-screen">
+      <TacticalTicker matches={matches} />
       <AnimatePresence>
         {isInitializing && (
           <motion.div 
@@ -314,6 +341,47 @@ export default function App() {
       </div>
       
       <main className="max-w-7xl mx-auto px-4 py-8">
+        {/* Live Match Focus Section */}
+        {matches.some(m => ['IN_PLAY', 'PAUSED', 'LIVE'].includes(m.status)) && (
+          <div className="mb-16">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+              <h3 className="text-xl font-black uppercase tracking-tight text-white">Live Signal Intercepted</h3>
+              <div className="h-[1px] flex-1 bg-gradient-to-r from-red-500/30 to-transparent" />
+            </div>
+            
+            <div className="grid grid-cols-1 gap-6">
+              {matches.filter(m => ['IN_PLAY', 'PAUSED', 'LIVE'].includes(m.status)).slice(0, 1).map(match => (
+                <motion.div
+                  key={match.id}
+                  initial={{ opacity: 0, y: 30 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="relative group"
+                >
+                   <div className="absolute -inset-1 bg-gradient-to-r from-red-500 to-yellow-500 rounded-[32px] blur opacity-20 group-hover:opacity-40 transition-opacity" />
+                   <PredictionCard 
+                      match={match}
+                      analysis={predictions[match.id] as any || {
+                        prediction: { 
+                          win_probability: { home: 45, draw: 25, away: 30 }, 
+                          scoreline: 'LIVE', 
+                          safe_side: 'ESTIMATING', 
+                          expected_goals: { home: 0, away: 0 } 
+                        },
+                        risk_assessment: { level: 'High', primary_risk: 'Live Multi-Variance', safety_buffer: 'Real-time Recalculation' },
+                        reasoning_summary: 'Engine syncing with live telemetry. Intelligent audit active.'
+                      }}
+                      onQueryAgent={() => openAgentWithMatch(match)}
+                      onViewDetails={() => handleInspectMatch(match.id.toString())}
+                      isFlashing={scoreFlash[match.id]}
+                      highlighted={true}
+                    />
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           
           {/* Main Content: Match List Grouped by Date */}
@@ -421,9 +489,14 @@ export default function App() {
                             <PredictionCard 
                               match={match}
                               analysis={predictions[match.id] as any || {
-                                prediction: { win_probability: { home: 33, draw: 34, away: 33 }, scoreline: '?-?', safe_side: 'TBD', expected_goals: { home: 0, away: 0 } },
-                                risk_assessment: { level: 'Medium', primary_risk: 'Insufficient Data', safety_buffer: 'Scanning...' },
-                                reasoning_summary: 'Analysis pending initialization.'
+                                prediction: { 
+                                  win_probability: { home: 45, draw: 25, away: 30 }, 
+                                  scoreline: 'H-A', 
+                                  safe_side: 'PENDING SCAN', 
+                                  expected_goals: { home: 0, away: 0 } 
+                                },
+                                risk_assessment: { level: 'Medium', primary_risk: 'Quantum Variance', safety_buffer: 'Awaiting AI Input' },
+                                reasoning_summary: 'Neural node awaiting tactical initialization.'
                               }}
                               onQueryAgent={() => openAgentWithMatch(match)}
                               onViewDetails={() => handleInspectMatch(match.id.toString())}
@@ -492,20 +565,38 @@ export default function App() {
                 <ChevronDown className="w-4 h-4 text-zinc-600" />
               </div>
 
-              <div className="bg-zinc-950 border border-zinc-900 p-6 rounded-2xl hidden lg:block">
-                <h4 className="text-xs font-black uppercase tracking-widest mb-4 flex items-center gap-2 text-zinc-500">
-                  <Activity className="w-4 h-4" />
-                  Tactical Feed
+              <div className="bg-zinc-950/80 backdrop-blur-xl border border-zinc-900 p-8 rounded-[32px] hidden lg:block relative overflow-hidden group">
+                <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+                  <Activity className="w-20 h-20 text-yellow-500" />
+                </div>
+                
+                <h4 className="text-[10px] font-black uppercase tracking-[0.3em] mb-8 flex items-center gap-3 text-zinc-600">
+                  <div className="w-2 h-2 rounded-full bg-yellow-500 animate-ping" />
+                  Live Sync Protocol
                 </h4>
-                <div className="space-y-4">
-                  <div className="flex gap-3">
-                    <div className="w-1 h-1 rounded-full bg-emerald-500 mt-1.5" />
-                    <p className="text-[11px] text-zinc-500 leading-tight">POISSON node initialized for upcoming Premier League fixtures.</p>
-                  </div>
-                  <div className="flex gap-3">
-                    <div className="w-1 h-1 rounded-full bg-yellow-500 mt-1.5" />
-                    <p className="text-[11px] text-zinc-500 leading-tight">Volatility spike detected in Primera Division markets.</p>
-                  </div>
+                
+                <div className="space-y-8">
+                  <FeedItem 
+                    code="PRL.NODE" 
+                    msg="POISSON node initialized for upcoming matchday." 
+                    time="09:14"
+                  />
+                  <FeedItem 
+                    code="STV.SCAN" 
+                    msg="Volatility spike detected in Primera Division markets." 
+                    time="10:22"
+                    urgent
+                  />
+                  <FeedItem 
+                    code="AI.INTEL" 
+                    msg="H2H velocity cross-verified for top 5 fixtures." 
+                    time="11:05"
+                  />
+                </div>
+
+                <div className="mt-12 flex justify-between items-center text-[8px] font-mono font-black text-zinc-800 uppercase tracking-widest">
+                   <span>SECURE CHANNEL L-94</span>
+                   <span className="animate-pulse">RECEIVING...</span>
                 </div>
               </div>
 
@@ -535,6 +626,12 @@ export default function App() {
         onClose={() => setIsDetailModalOpen(false)} 
         matchId={detailMatchId} 
       />
+
+      <CommandConsole 
+        isOpen={isCommandConsoleOpen} 
+        onClose={() => setIsCommandConsoleOpen(false)} 
+        matches={matches}
+      />
     </div>
   );
 }
@@ -556,4 +653,14 @@ const StrategicCard = ({ icon: Icon, title, desc, color }: any) => (
     </div>
     <p className="text-[11px] text-zinc-500 font-bold leading-relaxed">{desc}</p>
   </motion.div>
+);
+
+const FeedItem = ({ code, msg, time, urgent }: { code: string, msg: string, time: string, urgent?: boolean }) => (
+  <div className="group/item cursor-default">
+    <div className="flex items-center justify-between mb-2">
+      <span className={cn("text-[9px] font-black tracking-widest uppercase", urgent ? "text-yellow-500" : "text-zinc-600")}>{code}</span>
+      <span className="text-[8px] font-mono text-zinc-800">{time}</span>
+    </div>
+    <p className="text-[11px] text-zinc-400 font-medium leading-relaxed group-hover/item:text-zinc-200 transition-colors">{msg}</p>
+  </div>
 );

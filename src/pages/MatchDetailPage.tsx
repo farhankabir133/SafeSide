@@ -125,9 +125,23 @@ export default function MatchDetailPage() {
     setIsGenerating(true);
     setStreamedText('');
 
-    const prompt = buildMatchAnalysisPrompt(matchDetails, h2hData);
-
     try {
+      // Fetch Detailed Team Stats for both teams concurrently
+      const [homeStatsRes, awayStatsRes] = await Promise.all([
+        fetch(`/api/teams/${matchDetails.homeTeam.id}`),
+        fetch(`/api/teams/${matchDetails.awayTeam.id}`)
+      ]);
+
+      let teamStats = undefined;
+      if (homeStatsRes.ok && awayStatsRes.ok) {
+        teamStats = {
+          home: await homeStatsRes.json(),
+          away: await awayStatsRes.json()
+        };
+      }
+
+      const prompt = buildMatchAnalysisPrompt(matchDetails, h2hData, teamStats, weather, lineups);
+
       const result = await ai.generateContentStream({
         contents: [{ role: 'user', parts: [{ text: prompt }] }]
       });

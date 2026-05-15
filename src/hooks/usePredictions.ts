@@ -89,18 +89,47 @@ export function usePredictions() {
     if (!match) return;
 
     try {
-      // Fetch H2H data first
+      // Fetch H2H, Team Stats, and Weather concurrently for a high-fidelity scan
+      const venueToCity: Record<string, string> = {
+        "Emirates Stadium": "London",
+        "Etihad Stadium": "Manchester",
+        "Anfield": "Liverpool",
+        "Camp Nou": "Barcelona",
+        "Santiago Bernabéu": "Madrid",
+        "Allianz Arena": "Munich",
+      };
+      const city = venueToCity[match.venue] || match.area?.name || 'London';
+
+      const [h2hRes, homeStatsRes, awayStatsRes, weatherRes] = await Promise.allSettled([
+        fetch(`/api/matches/${matchId}/head2head`),
+        fetch(`/api/teams/${match.homeTeam.id}`),
+        fetch(`/api/teams/${match.awayTeam.id}`),
+        fetch(`/api/weather/${encodeURIComponent(city)}`)
+      ]);
+
       let h2hData = null;
-      try {
-        const h2hRes = await fetch(`/api/matches/${matchId}/head2head`);
-        if (h2hRes.ok) {
-          h2hData = await h2hRes.json();
-        }
-      } catch (h2hError) {
-        console.warn("H2H fetch failed, proceeding with basic match data.");
+      if (h2hRes.status === 'fulfilled' && h2hRes.value.ok) h2hData = await h2hRes.value.json();
+
+      let teamStats = undefined;
+      if (homeStatsRes.status === 'fulfilled' && homeStatsRes.value.ok && 
+          awayStatsRes.status === 'fulfilled' && awayStatsRes.value.ok) {
+        teamStats = {
+          home: await homeStatsRes.value.json(),
+          away: await awayStatsRes.value.json()
+        };
       }
 
-      const result: MatchAnalysis = await analyzeMatch(match, h2hData);
+      let weatherData = null;
+      if (weatherRes.status === 'fulfilled' && weatherRes.value.ok) weatherData = await weatherRes.value.json();
+
+      // Lineups usually not available via team/match proxy in free tier, but we'll try if endpoint exists
+      let lineups = null;
+      try {
+        const lineupsRes = await fetch(`/api/matches/${matchId}/lineups`);
+        if (lineupsRes.ok) lineups = await lineupsRes.json();
+      } catch (e) {}
+
+      const result: MatchAnalysis = await analyzeMatch(match, h2hData, teamStats, weatherData, lineups);
       
       setPredictions(prev => ({ ...prev, [matchId]: result }));
       
