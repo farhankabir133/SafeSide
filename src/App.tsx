@@ -19,9 +19,55 @@ import { CommandConsole } from "@/src/components/CommandCenter/CommandConsole";
 import { useAgent } from "@/src/contexts/AgentContext";
 import React, { useMemo, useState, useEffect } from "react";
 
+const QuotaBanner = ({ cooldownTime }: { cooldownTime: number }) => {
+  const [timeLeft, setTimeLeft] = useState(Math.ceil((cooldownTime - Date.now()) / 1000));
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const remaining = Math.ceil((cooldownTime - Date.now()) / 1000);
+      setTimeLeft(remaining > 0 ? remaining : 0);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [cooldownTime]);
+
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
+
+  return (
+    <motion.div 
+      initial={{ height: 0, opacity: 0 }}
+      animate={{ height: 'auto', opacity: 1 }}
+      exit={{ height: 0, opacity: 0 }}
+      className="bg-red-500/10 border-b border-red-500/20 backdrop-blur-md overflow-hidden relative z-[60]"
+    >
+      <div className="max-w-7xl mx-auto px-6 py-3 flex flex-col md:flex-row items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="bg-red-500/20 p-1.5 rounded-md">
+            <AlertTriangle className="w-4 h-4 text-red-500" />
+          </div>
+          <span className="text-[10px] font-black uppercase tracking-widest text-red-500">
+            Intelligence Nodes Saturated: Global Throttling Active
+          </span>
+        </div>
+        <div className="flex items-center gap-4">
+           <div className="text-[9px] font-mono text-zinc-400 uppercase">
+             Neural state recalibrating...
+           </div>
+           <div className="text-[10px] font-mono text-red-400 font-bold bg-red-500/20 px-4 py-1 rounded-full border border-red-500/30 min-w-[70px] text-center">
+             {formatTime(timeLeft)}
+           </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
 export default function App() {
   const navigate = useNavigate();
-  const { matches, loading, error, predictions, runAnalysis, stats, fetchMatches, isDemo, rateLimit, lastSyncedAt, historicalData } = usePredictions();
+  const { matches, loading, error, predictions, runAnalysis, stats, fetchMatches, isDemo, rateLimit, lastSyncedAt, historicalData, analyzingIds, analysisErrors, globalCooldown } = usePredictions();
   const { openAgentWithMatch } = useAgent();
   const [expandedLeagues, setExpandedLeagues] = useState<Record<string, boolean>>({});
   const [scoreFlash, setScoreFlash] = useState<Record<string, boolean>>({});
@@ -259,6 +305,12 @@ export default function App() {
   return (
     <div className="bg-[#0a0a0a] text-zinc-100 font-sans selection:bg-yellow-500 selection:text-black min-h-screen">
       <TacticalTicker matches={matches} />
+      {/* Global Quota Alert */}
+      <AnimatePresence>
+        {globalCooldown && Date.now() < globalCooldown && (
+          <QuotaBanner cooldownTime={globalCooldown} />
+        )}
+      </AnimatePresence>
       <AnimatePresence>
         {isInitializing && (
           <motion.div 
@@ -373,8 +425,12 @@ export default function App() {
                       }}
                       onQueryAgent={() => openAgentWithMatch(match)}
                       onViewDetails={() => handleInspectMatch(match.id.toString())}
+                      onRetry={() => runAnalysis(match.id.toString())}
                       isFlashing={scoreFlash[match.id]}
                       highlighted={true}
+                      isAnalyzing={analyzingIds.has(match.id.toString())}
+                      error={analysisErrors[match.id]}
+                      globalCooldown={globalCooldown}
                     />
                 </motion.div>
               ))}
@@ -492,7 +548,7 @@ export default function App() {
                                 prediction: { 
                                   win_probability: { home: 45, draw: 25, away: 30 }, 
                                   scoreline: 'H-A', 
-                                  safe_side: 'PENDING SCAN', 
+                                  safe_side: 'ESTIMATING', 
                                   expected_goals: { home: 0, away: 0 } 
                                 },
                                 risk_assessment: { level: 'Medium', primary_risk: 'Quantum Variance', safety_buffer: 'Awaiting AI Input' },
@@ -500,8 +556,12 @@ export default function App() {
                               }}
                               onQueryAgent={() => openAgentWithMatch(match)}
                               onViewDetails={() => handleInspectMatch(match.id.toString())}
+                              onRetry={() => runAnalysis(match.id.toString())}
                               isFlashing={scoreFlash[match.id]}
                               highlighted={detectedMatchId === match.id.toString()}
+                              isAnalyzing={analyzingIds.has(match.id.toString())}
+                              error={analysisErrors[match.id]}
+                              globalCooldown={globalCooldown}
                             />
                           </motion.div>
                         ))}
@@ -576,21 +636,30 @@ export default function App() {
                 </h4>
                 
                 <div className="space-y-8">
+                  {analyzingIds.size > 0 ? (
+                    <FeedItem 
+                      code="SCAN.ACTIVE" 
+                      msg={`Deep scanning ${analyzingIds.size} fixtures for tactical anomalies.`} 
+                      time={new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} 
+                      urgent
+                    />
+                  ) : (
+                    <FeedItem 
+                      code="SCAN.IDLE" 
+                      msg="Baseline surveillance active. All nodes operational." 
+                      time={new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} 
+                    />
+                  )}
                   <FeedItem 
                     code="PRL.NODE" 
-                    msg="POISSON node initialized for upcoming matchday." 
+                    msg="POISSON node cross-referencers initialized." 
                     time="09:14"
                   />
                   <FeedItem 
                     code="STV.SCAN" 
                     msg="Volatility spike detected in Primera Division markets." 
                     time="10:22"
-                    urgent
-                  />
-                  <FeedItem 
-                    code="AI.INTEL" 
-                    msg="H2H velocity cross-verified for top 5 fixtures." 
-                    time="11:05"
+                    urgent={Object.keys(analysisErrors).length > 0}
                   />
                 </div>
 

@@ -8,7 +8,7 @@ import { Users, Calendar, Trophy, MapPin, Globe, ArrowLeft, Zap, Shield, BrainCi
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 import ReactMarkdown from 'react-markdown';
-import { ai, MODEL_ID } from '@/src/services/geminiService';
+import { generateAIContent } from '@/src/services/geminiService';
 import { PredictionCard } from '@/src/components/PredictionCard';
 import { usePredictions } from '@/src/hooks/usePredictions';
 
@@ -69,10 +69,11 @@ Requirements:
 Output in markdown.`;
 
     try {
-      const result = await ai.generateContent(prompt);
-      setAiReport(result.response.text());
-    } catch (e) {
-      setAiReport("Tactical uplink failed. Signal blocked.");
+      const result = await generateAIContent(prompt);
+      setAiReport(result);
+    } catch (e: any) {
+      const isQuota = e.message?.includes('429') || e.message?.toLowerCase().includes('quota');
+      setAiReport(isQuota ? "Neural processor at capacity. Quota exceeded for the current period." : "Tactical uplink failed. Signal blocked.");
     } finally {
       setIsGeneratingReport(false);
     }

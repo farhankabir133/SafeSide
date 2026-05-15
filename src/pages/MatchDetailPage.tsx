@@ -34,7 +34,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/src/components/ui/ta
 import { Progress } from '@/src/components/ui/progress';
 import { Card, CardHeader, CardContent, CardFooter } from '@/src/components/ui/card';
 import { cn } from '@/src/lib/utils';
-import { MatchAnalysis, ai, MODEL_ID, buildMatchAnalysisPrompt } from '@/src/services/geminiService';
+import { MatchAnalysis, analyzeMatch } from '@/src/services/geminiService';
 import ReactMarkdown from 'react-markdown';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell, LineChart, Line } from 'recharts';
 import { toast } from 'sonner';
@@ -126,49 +126,34 @@ export default function MatchDetailPage() {
     setStreamedText('');
 
     try {
-      // Fetch Detailed Team Stats for both teams concurrently
-      const [homeStatsRes, awayStatsRes] = await Promise.all([
+      // Fetch Detailed Team Stats and Recent Matches for both teams concurrently
+      const [homeStatsRes, awayStatsRes, homeMatchesRes, awayMatchesRes] = await Promise.all([
         fetch(`/api/teams/${matchDetails.homeTeam.id}`),
-        fetch(`/api/teams/${matchDetails.awayTeam.id}`)
+        fetch(`/api/teams/${matchDetails.awayTeam.id}`),
+        fetch(`/api/teams/${matchDetails.homeTeam.id}/matches?status=FINISHED&limit=5`),
+        fetch(`/api/teams/${matchDetails.awayTeam.id}/matches?status=FINISHED&limit=5`)
       ]);
 
-      let teamStats = undefined;
+      let teamStats: any = undefined;
       if (homeStatsRes.ok && awayStatsRes.ok) {
         teamStats = {
           home: await homeStatsRes.json(),
           away: await awayStatsRes.json()
         };
+        
+        // Inject recent matches for form analysis
+        if (homeMatchesRes.ok) teamStats.home.recentMatches = (await homeMatchesRes.json()).matches;
+        if (awayMatchesRes.ok) teamStats.away.recentMatches = (await awayMatchesRes.json()).matches;
       }
 
-      const prompt = buildMatchAnalysisPrompt(matchDetails, h2hData, teamStats, weather, lineups);
-
-      const result = await ai.generateContentStream({
-        contents: [{ role: 'user', parts: [{ text: prompt }] }]
-      });
-
-      let fullText = '';
-      for await (const chunk of result.stream) {
-        const chunkText = chunk.text();
-        fullText += chunkText;
-        setStreamedText(fullText);
-      }
-
-      try {
-        const parsed = JSON.parse(fullText);
-        setAnalysis(parsed);
-        setIsReasoningExpanded(true); // Automatically expand when analysis is ready
-      } catch (parseError) {
-        // Find JSON block if there's markdown wrap
-        const jsonMatch = fullText.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch[0]);
-          setAnalysis(parsed);
-          setIsReasoningExpanded(true);
-        }
-      }
-    } catch (e) {
+      const result = await analyzeMatch(matchDetails, h2hData, teamStats, weather, lineups, odds);
+      setAnalysis(result);
+      setStreamedText(result.reasoning_summary);
+      setIsReasoningExpanded(true);
+    } catch (e: any) {
       console.error('AI analysis failed:', e);
-      toast.error('AI Analysis failed. Please try again.');
+      const isQuota = e.message?.includes('429') || e.message?.toLowerCase().includes('quota');
+      toast.error(isQuota ? 'Neural processor at capacity. Please try again in a few minutes.' : 'AI Analysis failed. Connection unstable.');
     } finally {
       setIsGenerating(false);
     }
@@ -669,15 +654,36 @@ export default function MatchDetailPage() {
           </TabsContent>
 
           <TabsContent value="lineups">
-             {lineups ? (
-               <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-                  <TeamLineup side="home" team={matchDetails.homeTeam} data={lineups.homeTeam} />
-                  <TeamLineup side="away" team={matchDetails.awayTeam} data={lineups.awayTeam} />
+             {(lineups || analysis?.predicted_lineups) ? (
+               <div className="space-y-12">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                     <TeamLineup 
+                        side="home" 
+                        team={matchDetails.homeTeam} 
+                        data={lineups?.homeTeam || { 
+                          formation: analysis?.predicted_lineups?.home.formation, 
+                          startXI: analysis?.predicted_lineups?.home.starting_xi.map((p, i) => ({ ...p, shirtNumber: '?', id: i })) 
+                        }} 
+                        isPredicted={!lineups}
+                     />
+                     <TeamLineup 
+                        side="away" 
+                        team={matchDetails.awayTeam} 
+                        data={lineups?.awayTeam || { 
+                          formation: analysis?.predicted_lineups?.away.formation, 
+                          startXI: analysis?.predicted_lineups?.away.starting_xi.map((p, i) => ({ ...p, shirtNumber: '?', id: i })) 
+                        }} 
+                        isPredicted={!lineups}
+                     />
+                  </div>
                </div>
              ) : (
                <div className="p-20 text-center bg-zinc-950 border-2 border-dashed border-zinc-900 rounded-[40px]">
                  <Users className="w-12 h-12 text-zinc-800 mx-auto mb-6" />
                  <p className="text-zinc-600 font-medium">Roster synchronisation pending authorization. Verification typically occurs 60m pre-kickoff.</p>
+                 <Button onClick={handleRunAnalysis} variant="outline" className="mt-4 border-zinc-800 hover:bg-zinc-900">
+                    Run AI Tactical Prediction
+                 </Button>
                </div>
              )}
           </TabsContent>
@@ -693,14 +699,17 @@ export default function MatchDetailPage() {
                   {/* Market Movement Chart */}
                   <Card className="bg-zinc-950 border-zinc-900 rounded-[40px] p-10">
                      <div className="flex items-center justify-between mb-8">
-                        <h4 className="text-lg font-black uppercase tracking-widest">Market Fluidity Index</h4>
+                        <div className="flex flex-col gap-1">
+                           <h4 className="text-lg font-black uppercase tracking-widest">Market Fluidity Index</h4>
+                           <p className="text-[10px] text-zinc-500 font-medium">Tracking 1X2 market movement over the last 24 hours</p>
+                        </div>
                         <div className="flex gap-4">
                            <ChartLegend label="Home" color="#10b981" />
                            <ChartLegend label="Away" color="#3b82f6" />
                         </div>
                      </div>
                      <div className="h-[300px] w-full">
-                        <MarketMovementChart />
+                        <MarketMovementChart history={odds.movementHistory} />
                      </div>
                   </Card>
                </div>
@@ -988,61 +997,75 @@ const StatLine = ({ label, value, color = 'text-white' }: any) => (
   </div>
 );
 
-const TeamLineup = ({ side, team, data }: any) => (
-  <div className="space-y-10">
-     <div className="flex items-center gap-4">
-        <img src={team.crest} className="w-10 h-10 object-contain" referrerPolicy="no-referrer" />
-        <div className="flex flex-col">
-           <h4 className="text-xl font-black uppercase tracking-tighter">{team.name}</h4>
-           <div className="flex items-center gap-2">
-             <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest">{data.formation} Formation</span>
-             <Badge className="bg-zinc-900 text-zinc-500 text-[8px] border-zinc-800">Operational</Badge>
-           </div>
-        </div>
-     </div>
-
-     {/* Pitch Visual Placeholder */}
-     <div className="aspect-[3/4] bg-neutral-900/50 border border-zinc-900 rounded-[40px] relative overflow-hidden p-8 flex items-center justify-center">
-        <div className="absolute inset-4 border border-zinc-800 rounded-3xl" />
-        <div className="absolute inset-x-4 top-1/2 h-px bg-zinc-800" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 border border-zinc-800 rounded-full" />
-        
-        {/* Simple Player Dots Visual */}
-        <div className="relative z-10 grid grid-rows-4 gap-12 w-full h-full p-4">
-           <div className="flex justify-around items-center">
-              {[1, 2, 3].map(i => <PlayerDot key={i} num={9 + i} side={side} />)}
-           </div>
-           <div className="flex justify-around items-center">
-              {[1, 2, 3].map(i => <PlayerDot key={i} num={6 + i} side={side} />)}
-           </div>
-           <div className="flex justify-around items-center">
-              {[1, 2, 3, 4].map(i => <PlayerDot key={i} num={1 + i} side={side} />)}
-           </div>
-           <div className="flex justify-center items-center">
-              <PlayerDot num={1} side={side} />
-           </div>
-        </div>
-     </div>
-
-     <div className="space-y-2">
-        <h5 className="text-[10px] font-black uppercase text-zinc-600 px-4 mb-4">Operational Roster (Starting XI)</h5>
-        {data.startXI.map((player: any) => (
-          <div key={player.id} className="flex items-center justify-between p-4 bg-zinc-950 border border-zinc-900 rounded-2xl group hover:border-zinc-700 transition-all">
-             <div className="flex items-center gap-4">
-                <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs", side === 'home' ? 'bg-yellow-500 text-black' : 'bg-blue-600 text-white')}>
-                   {player.shirtNumber}
-                </div>
-                <div className="flex flex-col">
-                   <span className="text-sm font-black uppercase tracking-tight">{player.name}</span>
-                   <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">{player.position}</span>
-                </div>
+const TeamLineup = ({ side, team, data, isPredicted = false }: any) => {
+  const startXI = data.startXI || data.starting_xi || [];
+  
+  return (
+    <div className="space-y-10">
+       <div className="flex items-center gap-4">
+          <img src={team.crest} className="w-10 h-10 object-contain" referrerPolicy="no-referrer" />
+          <div className="flex flex-col">
+             <h4 className="text-xl font-black uppercase tracking-tighter">{team.name}</h4>
+             <div className="flex items-center gap-2">
+               <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest">{data?.formation || 'Standard'} Formation</span>
+               <Badge className={cn(
+                 "text-[8px] border-zinc-800",
+                 isPredicted ? "bg-yellow-500/10 text-yellow-500" : "bg-emerald-500/10 text-emerald-500"
+               )}>
+                 {isPredicted ? 'AI Predicted' : 'Confirmed'}
+               </Badge>
              </div>
-             <Badge variant="outline" className="border-zinc-900 text-zinc-700 text-[8px] font-mono">{player.nationality}</Badge>
           </div>
-        ))}
-     </div>
-  </div>
-);
+       </div>
+
+       {/* Pitch Visual Placeholder */}
+       <div className="aspect-[3/4] bg-neutral-900/50 border border-zinc-900 rounded-[40px] relative overflow-hidden p-8 flex items-center justify-center">
+          <div className="absolute inset-4 border border-zinc-800 rounded-3xl" />
+          <div className="absolute inset-x-4 top-1/2 h-px bg-zinc-800" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 border border-zinc-800 rounded-full" />
+          
+          {/* Simple Player Dots Visual */}
+          <div className="relative z-10 grid grid-rows-4 gap-12 w-full h-full p-4">
+             <div className="flex justify-around items-center">
+                {[1, 2, 3].map(i => <PlayerDot key={i} num={startXI[10-i]?.shirtNumber || '?'} side={side} />)}
+             </div>
+             <div className="flex justify-around items-center">
+                {[1, 2, 3].map(i => <PlayerDot key={i} num={startXI[7-i]?.shirtNumber || '?'} side={side} />)}
+             </div>
+             <div className="flex justify-around items-center">
+                {[1, 2, 3, 4].map(i => <PlayerDot key={i} num={startXI[4-i]?.shirtNumber || '?'} side={side} />)}
+             </div>
+             <div className="flex justify-center items-center">
+                <PlayerDot num={startXI[0]?.shirtNumber || '?'} side={side} />
+             </div>
+          </div>
+       </div>
+
+       <div className="space-y-2">
+          <h5 className="text-[10px] font-black uppercase text-zinc-600 px-4 mb-4">
+             {isPredicted ? 'AI Predicted Tactical Roster' : 'Operational Roster (Starting XI)'}
+          </h5>
+          {startXI.map((player: any) => (
+            <div key={player.id} className="flex items-center justify-between p-4 bg-zinc-950 border border-zinc-900 rounded-2xl group hover:border-zinc-700 transition-all">
+               <div className="flex items-center gap-4">
+                  <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs", side === 'home' ? 'bg-yellow-500 text-black' : 'bg-blue-600 text-white')}>
+                     {player.shirtNumber}
+                  </div>
+                  <div className="flex flex-col">
+                     <div className="flex items-center gap-2">
+                        <span className="text-sm font-black uppercase tracking-tight">{player.name}</span>
+                        {player.is_key_player && <Zap className="w-3 h-3 text-yellow-500 fill-yellow-500" />}
+                     </div>
+                     <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">{player.position}</span>
+                  </div>
+               </div>
+               <Badge variant="outline" className="border-zinc-900 text-zinc-700 text-[8px] font-mono">{player.nationality || 'TBD'}</Badge>
+            </div>
+          ))}
+       </div>
+    </div>
+  );
+};
 
 const PlayerDot = ({ num, side }: any) => (
   <div className={cn("w-10 h-10 rounded-full flex items-center justify-center font-black text-xs border-2 shadow-2xl", side === 'home' ? 'bg-yellow-500 border-yellow-400 text-black' : 'bg-blue-600 border-blue-400 text-white')}>
@@ -1090,8 +1113,8 @@ const OddsCell = ({ label, value, color = 'text-zinc-200' }: any) => (
   </div>
 );
 
-const MarketMovementChart = () => {
-  const data = [
+const MarketMovementChart = ({ history }: { history?: any[] }) => {
+  const defaultData = [
     { time: 'Open', home: 2.40, draw: 3.50, away: 3.20 },
     { time: '-6h',  home: 2.30, draw: 3.45, away: 3.25 },
     { time: '-3h',  home: 2.20, draw: 3.42, away: 3.30 },
@@ -1099,11 +1122,17 @@ const MarketMovementChart = () => {
     { time: 'Now',  home: 2.10, draw: 3.40, away: 3.60 },
   ];
 
+  const data = history || defaultData;
+
   return (
     <ResponsiveContainer width="100%" height="100%">
        <LineChart data={data}>
           <XAxis dataKey="time" stroke="#52525b" fontSize={10} axisLine={false} tickLine={false} />
-          <Tooltip contentStyle={{ backgroundColor: '#000', border: '1px solid #27272a', borderRadius: '8px' }} labelStyle={{ display: 'none' }} />
+          <Tooltip 
+            contentStyle={{ backgroundColor: '#000', border: '1px solid #27272a', borderRadius: '8px' }} 
+            labelStyle={{ color: '#fff', fontWeight: 'bold', marginBottom: '4px' }}
+            itemStyle={{ fontSize: '10px', textTransform: 'uppercase' }}
+          />
           <Line type="monotone" dataKey="home" stroke="#10b981" strokeWidth={3} dot={{ r: 4, fill: '#10b981' }} />
           <Line type="monotone" dataKey="away" stroke="#3b82f6" strokeWidth={3} dot={{ r: 4, fill: '#3b82f6' }} />
        </LineChart>

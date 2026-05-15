@@ -13,14 +13,14 @@ import { Trophy, Activity, Target, BrainCircuit, Globe, ArrowLeft, Users, Zap, S
 import { motion } from 'motion/react';
 import { cn } from '@/lib/utils';
 import ReactMarkdown from 'react-markdown';
-import { ai, MODEL_ID } from '@/src/services/geminiService';
+import { generateAIContent } from '@/src/services/geminiService';
 import { useAgent } from '@/src/contexts/AgentContext';
 
 export default function LeaguePage() {
   const { slug } = useParams();
   const navigate = useNavigate();
   const league = getLeagueBySlug(slug || '');
-  const { matches, loading, predictions, runAnalysis, fetchMatches } = usePredictions();
+  const { matches, loading, predictions, runAnalysis, fetchMatches, analyzingIds, analysisErrors } = usePredictions();
   const { openAgentWithMatch } = useAgent();
   
   const [standings, setStandings] = useState<any>(null);
@@ -94,10 +94,11 @@ Identify:
 Keep it professional, data-centric, and use the 'Safe Side' intelligence tone.`;
 
     try {
-      const result = await ai.generateContent(prompt);
-      setAiReport(result.response.text());
-    } catch (e) {
-      setAiReport("Analysis failed to initialize. Node connection unstable.");
+      const result = await generateAIContent(prompt);
+      setAiReport(result);
+    } catch (e: any) {
+      const isQuota = e.message?.includes('429') || e.message?.toLowerCase().includes('quota');
+      setAiReport(isQuota ? "Neural processor at capacity. Quota exceeded for the current period." : "Analysis failed to initialize. Node connection unstable.");
     } finally {
       setIsGeneratingReport(false);
     }
@@ -196,7 +197,7 @@ Keep it professional, data-centric, and use the 'Safe Side' intelligence tone.`;
                         prediction: { 
                           win_probability: { home: 45, draw: 25, away: 30 }, 
                           scoreline: 'H-A', 
-                          safe_side: 'PENDING SCAN', 
+                          safe_side: 'ESTIMATING', 
                           expected_goals: { home: 0, away: 0 } 
                         },
                         risk_assessment: { level: 'Medium', primary_risk: 'Quantum Variance', safety_buffer: 'Awaiting AI Input' },
@@ -204,6 +205,8 @@ Keep it professional, data-centric, and use the 'Safe Side' intelligence tone.`;
                       }}
                       onQueryAgent={() => openAgentWithMatch(match)}
                       onViewDetails={() => navigate(`/matches/${match.id}`)}
+                      isAnalyzing={analyzingIds.has(match.id.toString())}
+                      error={analysisErrors[match.id]}
                     />
                   ))}
                 </div>

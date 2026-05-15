@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { BrainCircuit, Send, User, Bot, Loader2, X } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "@/lib/utils";
-import { ai, MODEL_ID } from "@/src/services/geminiService";
+import { chatAI, formatAIError } from "@/src/services/geminiService";
 
 interface Message {
   role: 'user' | 'model';
@@ -72,10 +72,6 @@ export function ChatInterface({ matches, selectedMatch, onClearSelected }: ChatI
           parts: [{ text: m.content }]
         }));
 
-      const chat = ai.startChat({
-        history: chatHistory
-      });
-
       const matchesSummary = matches && matches.length > 0 
         ? `Upcoming Matches Available for Scanning:\n${matches.map((m: any) => `- ${m.homeTeam.name} vs ${m.awayTeam.name} (${m.competition?.name || 'Unknown Competition'}) at ${m.utcDate}`).join('\n')}`
         : "No live fixture data provided in current context.";
@@ -99,12 +95,12 @@ ${selectedContext}
 Scanned Data Context:
 ${matchesSummary}`;
 
-      const result = await chat.sendMessage(`${systemPrompt}\n\nUser Message: ${userMessage}`);
-      const text = result.response.text();
+      const fullMessage = `${systemPrompt}\n\nUser Message: ${userMessage}`;
+      const text = await chatAI(fullMessage, chatHistory);
 
       setMessages(prev => [...prev, { role: 'model', content: text }]);
     } catch (error: any) {
-      const errorMessage = error.message || "Simulation failed. Please check connectivity.";
+      const errorMessage = formatAIError(error);
       setMessages(prev => [...prev, { role: 'model', content: `Agent Offline: ${errorMessage}` }]);
     } finally {
       setLoading(false);

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { MatchAnalysis, analyzeMatch } from '@/src/services/geminiService';
-import { supabase } from '@/src/lib/supabase';
+import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
 
 export function usePredictions() {
   const [matches, setMatches] = useState<any[]>([]);
@@ -12,12 +12,86 @@ export function usePredictions() {
   const [rateLimit, setRateLimit] = useState<{ remaining: number; reset: number } | null>(null);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
   const [historicalData, setHistoricalData] = useState<any[]>([]);
+  const [analyzingIds, setAnalyzingIds] = useState<Set<string>>(new Set());
+  const [analysisErrors, setAnalysisErrors] = useState<Record<string, string>>({});
+  const [globalCooldown, setGlobalCooldown] = useState<number | null>(null);
+  const [hasAttemptedInitialAnalysis, setHasAttemptedInitialAnalysis] = useState(false);
+
+  // Load from localStorage on mount
+  useEffect(() => {
+    try {
+      const cached = localStorage.getItem('match_predictions_cache');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        // Only keep predictions from the last 48 hours
+        const filtered: Record<string, MatchAnalysis> = {};
+        const now = Date.now();
+        Object.entries(parsed).forEach(([id, data]: [string, any]) => {
+          if (data && data._timestamp && now - data._timestamp < 1000 * 60 * 60 * 48) {
+            filtered[id] = data;
+          }
+        });
+        setPredictions(prev => ({ ...prev, ...filtered }));
+      }
+    } catch (e) {
+      console.warn("Failed to load local predictions cache");
+    }
+  }, []);
+
+  // Save to localStorage when predictions update
+  useEffect(() => {
+    if (Object.keys(predictions).length > 0) {
+      try {
+        localStorage.setItem('match_predictions_cache', JSON.stringify(predictions));
+      } catch (e) {}
+    }
+  }, [predictions]);
 
   useEffect(() => {
     fetchMatches();
     fetchStats();
     fetchHistoricalData();
+    fetchPredictionsFromDb();
+  }, []);
 
+  const fetchPredictionsFromDb = async () => {
+    if (!isSupabaseConfigured()) return;
+    try {
+      const { data, error } = await supabase
+        .from('predictions')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      
+      if (data) {
+        const storedPredictions: Record<string, MatchAnalysis> = {};
+        data.forEach(p => {
+          if (p.full_analysis) {
+            try {
+              storedPredictions[p.match_id] = typeof p.full_analysis === 'string' 
+                ? JSON.parse(p.full_analysis) 
+                : p.full_analysis;
+            } catch (e) {}
+          }
+        });
+        setPredictions(prev => ({ ...prev, ...storedPredictions }));
+        if (data.length > 0) setHasAttemptedInitialAnalysis(true);
+      }
+    } catch (e) {
+      console.warn("Could not fetch predictions from DB:", (e as Error).message);
+    }
+  };
+
+  // Automatic analysis for top upcoming matches removed to conserve Gemini API quota.
+  // Users must now manually trigger analysis for matches that don't have predictions.
+  useEffect(() => {
+    if (matches.length > 0 && !hasAttemptedInitialAnalysis && !loading) {
+      setHasAttemptedInitialAnalysis(true);
+    }
+  }, [matches.length, loading, hasAttemptedInitialAnalysis]);
+
+  useEffect(() => {
     // Set up real-time polling every 30 seconds for live updates
     const interval = setInterval(() => {
       const hasLiveMatches = matches.some(m => ['IN_PLAY', 'PAUSED', 'LIVE'].includes(m.status));
@@ -29,6 +103,7 @@ export function usePredictions() {
   }, [matches.some(m => ['IN_PLAY', 'PAUSED', 'LIVE'].includes(m.status))]);
 
   const fetchStats = async () => {
+    if (!isSupabaseConfigured()) return;
     try {
       const { data, count, error } = await supabase
         .from('predictions')
@@ -85,10 +160,35 @@ export function usePredictions() {
   };
 
   const runAnalysis = async (matchId: string) => {
+    if (analyzingIds.has(matchId)) return;
+    
+    // Check global cooldown (5 minute lockout if quota hit)
+    if (globalCooldown && Date.now() < globalCooldown) {
+      const remainingSec = Math.ceil((globalCooldown - Date.now()) / 1000);
+      if (remainingSec > 60) {
+        throw new Error(`Neural processor cooling down. Retry in ${Math.ceil(remainingSec/60)}m.`);
+      } else {
+        throw new Error(`Neural processor cooling down. Retry in ${remainingSec}s.`);
+      }
+    }
+    
+    // Individual user local throttle (don't allow clicking more than once every 10s per match)
+    const lastAttempt = localStorage.getItem(`last_analysis_${matchId}`);
+    if (lastAttempt && Date.now() - parseInt(lastAttempt) < 10000) {
+       throw new Error("System processing. Please wait 10s.");
+    }
+
     const match = matches.find(m => m.id.toString() === matchId);
     if (!match) return;
 
     try {
+      localStorage.setItem(`last_analysis_${matchId}`, Date.now().toString());
+      setAnalyzingIds(prev => new Set(prev).add(matchId));
+      setAnalysisErrors(prev => {
+        const next = { ...prev };
+        delete next[matchId];
+        return next;
+      });
       // Fetch H2H, Team Stats, and Weather concurrently for a high-fidelity scan
       const venueToCity: Record<string, string> = {
         "Emirates Stadium": "London",
@@ -100,11 +200,12 @@ export function usePredictions() {
       };
       const city = venueToCity[match.venue] || match.area?.name || 'London';
 
-      const [h2hRes, homeStatsRes, awayStatsRes, weatherRes] = await Promise.allSettled([
+      const [h2hRes, homeStatsRes, awayStatsRes, weatherRes, oddsRes] = await Promise.allSettled([
         fetch(`/api/matches/${matchId}/head2head`),
         fetch(`/api/teams/${match.homeTeam.id}`),
         fetch(`/api/teams/${match.awayTeam.id}`),
-        fetch(`/api/weather/${encodeURIComponent(city)}`)
+        fetch(`/api/weather/${encodeURIComponent(city)}`),
+        fetch(`/api/odds/${matchId}`)
       ]);
 
       let h2hData = null;
@@ -122,6 +223,9 @@ export function usePredictions() {
       let weatherData = null;
       if (weatherRes.status === 'fulfilled' && weatherRes.value.ok) weatherData = await weatherRes.value.json();
 
+      let oddsData = null;
+      if (oddsRes.status === 'fulfilled' && oddsRes.value.ok) oddsData = await oddsRes.value.json();
+
       // Lineups usually not available via team/match proxy in free tier, but we'll try if endpoint exists
       let lineups = null;
       try {
@@ -129,37 +233,86 @@ export function usePredictions() {
         if (lineupsRes.ok) lineups = await lineupsRes.json();
       } catch (e) {}
 
-      const result: MatchAnalysis = await analyzeMatch(match, h2hData, teamStats, weatherData, lineups);
+      const result: MatchAnalysis = await analyzeMatch(match, h2hData, teamStats, weatherData, lineups, oddsData);
       
-      setPredictions(prev => ({ ...prev, [matchId]: result }));
+      // Inject timestamp for cache invalidation
+      const resultWithMeta = { ...result, _timestamp: Date.now() };
+      
+      setPredictions(prev => ({ ...prev, [matchId]: resultWithMeta }));
+      setAnalyzingIds(prev => {
+        const next = new Set(prev);
+        next.delete(matchId);
+        return next;
+      });
       
       // Parse scoreline "X-X"
       const [h, a] = result.prediction.scoreline.split('-').map(n => parseInt(n.trim()));
 
       // Record to Supabase (Optional for UI to function)
       try {
-        await supabase.from('predictions').insert({
-          match_id: matchId,
-          home_team: match.homeTeam.name,
-          away_team: match.awayTeam.name,
-          prediction_score_home: isNaN(h) ? 0 : h,
-          prediction_score_away: isNaN(a) ? 0 : a,
-          confidence_score: result.prediction.confidence_score * 10,
-          risk_level: result.risk_assessment.level,
-          analysis: result.reasoning_summary,
-          coincidence_likelihood: JSON.stringify(result.micro_events),
-          status: 'pending'
-        });
-        await fetchStats();
+        if (isSupabaseConfigured()) {
+          await supabase.from('predictions').upsert({
+            match_id: matchId,
+            home_team: match.homeTeam.name,
+            away_team: match.awayTeam.name,
+            prediction_score_home: isNaN(h) ? 0 : h,
+            prediction_score_away: isNaN(a) ? 0 : a,
+            confidence_score: result.prediction.confidence_score * 10,
+            risk_level: result.risk_assessment.level,
+            analysis: result.reasoning_summary,
+            full_analysis: JSON.stringify(result),
+            coincidence_likelihood: JSON.stringify(result.micro_events),
+            status: 'pending'
+          }, { onConflict: 'match_id' });
+          await fetchStats();
+        }
       } catch (dbError) {
         console.warn("Could not persist prediction to Supabase:", (dbError as Error).message);
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error("Analysis failed:", e);
+      
+      // If it's a quota error, set global cooldown using retryAfterMs if available
+      try {
+        const message = e.message || "";
+        let errData: any = null;
+        
+        // Try to find JSON block if it's embedded or the whole message
+        const jsonMatch = message.match(/\{.*\}/);
+        if (jsonMatch) {
+          try {
+            errData = JSON.parse(jsonMatch[0]);
+          } catch (p) {
+            console.warn("Soft parse failed:", p);
+          }
+        }
+        
+        if (errData && errData.isQuotaExceeded) {
+          const cooldownDuration = errData.retryAfterMs || (10 * 60 * 1000);
+          setGlobalCooldown(Date.now() + cooldownDuration);
+          setAnalysisErrors(prev => ({ ...prev, [matchId]: errData.error || "Neural processor at capacity." }));
+        } else {
+          setAnalysisErrors(prev => ({ ...prev, [matchId]: errData?.error || e.message || "Unknown error" }));
+        }
+      } catch (parseError) {
+        if (e.message?.includes("429") || e.message?.includes("quota") || e.message?.includes("capacity")) {
+          setGlobalCooldown(Date.now() + 10 * 60 * 1000); // 10 minute fallback
+          setAnalysisErrors(prev => ({ ...prev, [matchId]: "Neural processor at capacity. Cooling down." }));
+        } else {
+          setAnalysisErrors(prev => ({ ...prev, [matchId]: e.message || "Unknown error" }));
+        }
+      }
+      setAnalyzingIds(prev => {
+        const next = new Set(prev);
+        next.delete(matchId);
+        return next;
+      });
+      throw e; // Re-throw so caller (like triggerInitialAnalysis) knows to stop
     }
   };
 
   const fetchHistoricalData = async () => {
+    if (!isSupabaseConfigured()) return;
     try {
       const { data, error } = await supabase
         .from('predictions')
@@ -199,5 +352,5 @@ export function usePredictions() {
     }
   };
 
-  return { matches, loading, error, predictions, runAnalysis, stats, fetchMatches, isDemo, rateLimit, lastSyncedAt, historicalData };
+  return { matches, loading, error, predictions, runAnalysis, stats, fetchMatches, isDemo, rateLimit, lastSyncedAt, historicalData, analyzingIds, analysisErrors, globalCooldown };
 }

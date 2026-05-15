@@ -83,30 +83,312 @@ async function startServer() {
     }
   });
 
+  // Simple in-memory cache for AI responses to save quota
+  const aiCache = new Map<string, { data: any, timestamp: number }>();
+  const CHAT_CACHE = new Map<string, { data: any, timestamp: number }>(); 
+  const INFLIGHT_REQUESTS = new Map<string, Promise<any>>();
+  const CACHE_TTL = 1000 * 60 * 60 * 48; // 48 hours for match analysis
+  let sharedCooldownUntil = 0;
+  let lastGeminiRequestTime = 0;
+
+  /**
+   * Normalize prompt to increase cache hit rates and ensure uniformity across users.
+   * Strips all non-essential data for match identification.
+   */
+  const normalizePrompt = (prompt: string): string => {
+    if (!prompt) return "";
+    
+    // Look for Fixture and Competition patterns
+    const matchMatch = prompt.match(/Fixture:\s*(.*)\s*vs\s*(.*)/i);
+    
+    if (matchMatch) {
+       const normalizeName = (name: string) => name.toLowerCase()
+         .replace(/f\.c\.|fc|club|real|united|city|rovers|hotspur|athletic|town|county|st\s|saint\s/g, '')
+         .replace(/[^a-z0-9]/g, '')
+         .trim();
+
+       const teams = [normalizeName(matchMatch[1]), normalizeName(matchMatch[2])].sort();
+       
+       // Sort teams alphabetically so A vs B == B vs A in cache
+       return `MATCH_ANALYSIS_V5_${teams[0]}_${teams[1]}`;
+    }
+    
+    return "GENERIC_" + prompt.trim().toLowerCase().replace(/\s+/g, ' ').substring(0, 300);
+  };
+
+  /**
+   * Strictly serialized request queue for Gemini to enforce RPM limits.
+   * Free tier is 15 RPM, so we aim for ~6 RPM (10s delay) to be extremely safe.
+   */
+  let geminiRequestQueue: Promise<any> = Promise.resolve();
+  const MIN_GEMINI_DELAY = 10000; // 10s for ~6 RPM (well under 15 RPM limit)
+
+  const FALLBACK_MODELS = ["gemini-2.0-flash", "gemini-3-flash-preview", "gemini-flash-latest", "gemini-3.1-flash-lite"];
+
+  const enqueueGeminiRequest = <T>(requestFn: (modelName: string) => Promise<T>): Promise<T> => {
+    const previous = geminiRequestQueue;
+    const current = (async () => {
+      try {
+        await previous;
+      } catch (e) {
+        // Ignore previous failures
+      }
+      
+      const executeWithRetry = async (modelIndex: number): Promise<T> => {
+        const modelName = FALLBACK_MODELS[modelIndex];
+        
+        const now = Date.now();
+        const elapsed = now - lastGeminiRequestTime;
+        if (elapsed < MIN_GEMINI_DELAY) {
+          const wait = MIN_GEMINI_DELAY - elapsed;
+          console.log(`[Queue] Delaying Gemini call by ${wait}ms to respect free-tier RPM...`);
+          await new Promise(resolve => setTimeout(resolve, wait));
+        }
+        
+        lastGeminiRequestTime = Date.now();
+        
+        try {
+          console.log(`[Queue] Attempting Gemini request with: ${modelName}`);
+          return await requestFn(modelName);
+        } catch (error: any) {
+          const errorMessage = error.message || "";
+          const isQuota = errorMessage.includes("429") || errorMessage.toLowerCase().includes("quota");
+          const isNotFound = errorMessage.includes("404") || errorMessage.toLowerCase().includes("not found");
+          
+          if ((isQuota || isNotFound) && modelIndex < FALLBACK_MODELS.length - 1) {
+            console.warn(`[Queue] ${modelName} triggered fallback (Reason: ${isQuota ? "Quota" : "Not Found"}). Trying ${FALLBACK_MODELS[modelIndex + 1]}...`);
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Brief pause before fallback
+            return executeWithRetry(modelIndex + 1);
+          }
+          throw error;
+        }
+      };
+
+      return await executeWithRetry(0);
+    })();
+    
+    geminiRequestQueue = current.catch(() => {}); // Don't block queue on failure
+    return current;
+  };
+
   // AI Analysis Proxy (Server-side Gemini)
   app.post("/api/analyze", async (req, res) => {
+    const { prompt } = req.body;
+    const normalized = normalizePrompt(prompt);
+    
     try {
-      const { prompt } = req.body;
-      const geminiApiKey = process.env.GEMINI_API_KEY;
-
-      if (!geminiApiKey) {
-         return res.status(500).json({ error: "GEMINI_API_KEY missing from server environment." });
+      if (Date.now() < sharedCooldownUntil) {
+        const remaining = Math.ceil((sharedCooldownUntil - Date.now()) / 1000);
+        return res.status(429).json({ 
+          error: `Neural processor at capacity. Global cooldown active for ${remaining}s. Intelligence node cooling.`,
+          isQuotaExceeded: true,
+          retryAfterMs: sharedCooldownUntil - Date.now()
+        });
       }
 
-      const { GoogleGenerativeAI } = await import("@google/generative-ai");
-      const genAI = new GoogleGenerativeAI(geminiApiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+      // Check cache
+      const cached = aiCache.get(normalized);
+      if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+        console.log(`[Cache] Hit for: ${normalized}`);
+        return res.json(cached.data);
+      }
 
-      const result = await model.generateContent({
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: {
-          responseMimeType: "application/json",
-        }
+      // De-deduplicate concurrent requests
+      if (INFLIGHT_REQUESTS.has(normalized)) {
+        console.log(`[Cache] De-duped concurrent request for: ${normalized}`);
+        const data = await INFLIGHT_REQUESTS.get(normalized);
+        return res.json(data);
+      }
+
+      const requestPromise = enqueueGeminiRequest(async (modelName) => {
+        const geminiApiKey = process.env.GEMINI_API_KEY;
+        if (!geminiApiKey) throw new Error("GEMINI_API_KEY missing.");
+
+        const { GoogleGenAI } = await import("@google/genai");
+        const ai = new GoogleGenAI({
+          apiKey: geminiApiKey,
+          httpOptions: { headers: { 'User-Agent': 'aistudio-build' } }
+        });
+
+        const result = await ai.models.generateContent({
+          model: modelName,
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          config: { 
+            responseMimeType: "application/json",
+            temperature: 0.1
+          }
+        });
+
+        const text = result.text;
+        if (!text) throw new Error("Empty AI response.");
+        
+        const responseData = JSON.parse(text);
+        aiCache.set(normalized, { data: responseData, timestamp: Date.now() });
+        return responseData;
       });
 
-      res.json(JSON.parse(result.response.text()));
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      INFLIGHT_REQUESTS.set(normalized, requestPromise);
+      
+      try {
+        const responseData = await requestPromise;
+        res.json(responseData);
+      } finally {
+        INFLIGHT_REQUESTS.delete(normalized);
+      }
+    } catch (geminiError: any) {
+      console.error("Gemini API Error (Analyze):", geminiError);
+      const errorMessage = geminiError.message || "";
+      
+      if (errorMessage.includes("429") || errorMessage.includes("quota") || errorMessage.includes("limit")) {
+        const baseCooldown = 30 * 60 * 1000; // Increase to 30 min cooldown
+        sharedCooldownUntil = Date.now() + baseCooldown;
+        
+        return res.status(429).json({ 
+          error: "All Neural nodes at capacity. Quota exhausted across all available tiers. Global cooling active for 30 minutes.",
+          isQuotaExceeded: true,
+          retryAfterMs: baseCooldown 
+        });
+      }
+      res.status(500).json({ error: errorMessage || "Tactical node sequence error." });
+    }
+  });
+
+
+  // Generic AI Generation Proxy
+  app.post("/api/ai/generate", async (req, res) => {
+    const { prompt } = req.body;
+    const normalized = normalizePrompt(prompt);
+    try {
+      if (Date.now() < sharedCooldownUntil) {
+        return res.status(429).json({ 
+          error: "Intelligence Node cooling down (429).",
+          isQuotaExceeded: true,
+          retryAfterMs: sharedCooldownUntil - Date.now()
+        });
+      }
+
+      // Check cache
+      const cached = aiCache.get(normalized);
+      if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+        return res.json({ text: cached.data });
+      }
+
+      if (INFLIGHT_REQUESTS.has(normalized)) {
+        const text = await INFLIGHT_REQUESTS.get(normalized);
+        return res.json({ text });
+      }
+
+      const requestPromise = enqueueGeminiRequest(async (modelName) => {
+        const geminiApiKey = process.env.GEMINI_API_KEY;
+        if (!geminiApiKey) throw new Error("GEMINI_API_KEY missing.");
+
+        const { GoogleGenAI } = await import("@google/genai");
+        const ai = new GoogleGenAI({
+          apiKey: geminiApiKey,
+          httpOptions: { headers: { 'User-Agent': 'aistudio-build' } }
+        });
+
+        const result = await ai.models.generateContent({
+          model: modelName,
+          contents: prompt
+        });
+
+        const text = result.text;
+        if (!text) throw new Error("Empty AI response.");
+        
+        aiCache.set(normalized, { data: text, timestamp: Date.now() });
+        return text;
+      });
+
+      INFLIGHT_REQUESTS.set(normalized, requestPromise);
+
+      try {
+        const text = await requestPromise;
+        res.json({ text });
+      } finally {
+        INFLIGHT_REQUESTS.delete(normalized);
+      }
+    } catch (geminiError: any) {
+      console.error("Gemini API Error (Generate):", geminiError);
+      const errorMessage = geminiError.message || "";
+      if (errorMessage.includes("429") || errorMessage.includes("quota") || errorMessage.includes("limit")) {
+        sharedCooldownUntil = Date.now() + 30 * 60 * 1000;
+        return res.status(429).json({ error: "Rate limit hit across all models.", isQuotaExceeded: true, retryAfterMs: 1800000 });
+      }
+      res.status(500).json({ error: errorMessage || "AI Engine failure." });
+    }
+  });
+
+  // AI Chat Proxy (Stateless)
+  app.post("/api/ai/chat", async (req, res) => {
+    const { history, message } = req.body;
+    try {
+      if (Date.now() < sharedCooldownUntil) {
+        return res.status(429).json({ 
+          error: "Oracle temporarily disconnected. Recovery in progress.",
+          isQuotaExceeded: true,
+          retryAfterMs: sharedCooldownUntil - Date.now()
+        });
+      }
+
+      const chatKey = JSON.stringify({ h: history.length, m: message });
+      const cached = CHAT_CACHE.get(chatKey);
+      if (cached && Date.now() - cached.timestamp < 30 * 60 * 1000) {
+        return res.json(cached.data);
+      }
+
+      if (INFLIGHT_REQUESTS.has(chatKey)) {
+        const data = await INFLIGHT_REQUESTS.get(chatKey);
+        return res.json(data);
+      }
+
+      const requestPromise = enqueueGeminiRequest(async (modelName) => {
+        const geminiApiKey = process.env.GEMINI_API_KEY;
+        if (!geminiApiKey) throw new Error("GEMINI_API_KEY missing.");
+
+        const { GoogleGenAI } = await import("@google/genai");
+        const ai = new GoogleGenAI({
+          apiKey: geminiApiKey,
+          httpOptions: { headers: { 'User-Agent': 'aistudio-build' } }
+        });
+
+        const chat = ai.chats.create({
+          model: modelName,
+          config: {
+            systemInstruction: "You are a tactical football analyst and predictive engine."
+          }
+        });
+        
+        const result = await chat.sendMessage({ message });
+        const text = result.text;
+        if (!text) throw new Error("Empty AI response.");
+        
+        const responseData = { text };
+        
+        CHAT_CACHE.set(chatKey, { data: responseData, timestamp: Date.now() });
+        return responseData;
+      });
+
+      INFLIGHT_REQUESTS.set(chatKey, requestPromise);
+
+      try {
+        const responseData = await requestPromise;
+        res.json(responseData);
+      } finally {
+        INFLIGHT_REQUESTS.delete(chatKey);
+      }
+    } catch (geminiError: any) {
+      console.error("Gemini API Error (Chat):", geminiError);
+      const errorMessage = geminiError.message || "";
+      if (errorMessage.includes("429") || errorMessage.includes("quota") || errorMessage.includes("limit")) {
+        sharedCooldownUntil = Date.now() + 30 * 60 * 1000;
+        return res.status(429).json({ 
+          error: "Oracle temporarily disconnected. All Intelligence nodes at capacity.",
+          isQuotaExceeded: true,
+          retryAfterMs: 1800000 
+        });
+      }
+      res.status(500).json({ error: errorMessage || "Tactical communication failed." });
     }
   });
 
@@ -444,29 +726,40 @@ async function startServer() {
           name: "Bet365",
           logo: null,
           markets: {
-            h2h: { home: 2.10, draw: 3.40, away: 3.60 },
+            h2h: { home: 1.95, draw: 3.40, away: 4.10 },
             over_under: { over: 1.85, under: 1.95 },
             btts: { yes: 1.75, no: 2.05 }
-          }
+          },
+          movement: "up"
         },
         {
           name: "Betfair",
           logo: null,
           markets: {
-            h2h: { home: 2.14, draw: 3.45, away: 3.55 },
+            h2h: { home: 1.98, draw: 3.45, away: 4.05 },
             over_under: { over: 1.87, under: 1.93 },
             btts: { yes: 1.78, no: 2.02 }
-          }
+          },
+          movement: "down"
         },
         {
           name: "Pinnacle",
           logo: null,
           markets: {
-            h2h: { home: 2.17, draw: 3.38, away: 3.62 },
+            h2h: { home: 1.92, draw: 3.50, away: 4.20 },
             over_under: { over: 1.88, under: 1.94 },
             btts: { yes: 1.80, no: 2.00 }
-          }
+          },
+          movement: "stable"
         }
+      ],
+      movementHistory: [
+        { time: 'Open', home: 2.30, draw: 3.50, away: 3.20 },
+        { time: '-12h', home: 2.20, draw: 3.45, away: 3.35 },
+        { time: '-6h', home: 2.15, draw: 3.42, away: 3.50 },
+        { time: '-3h', home: 2.05, draw: 3.40, away: 3.80 },
+        { time: '-1h', home: 1.98, draw: 3.40, away: 4.00 },
+        { time: 'Now', home: 1.95, draw: 3.40, away: 4.10 },
       ]
     });
   });

@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useNavigate } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
 import { 
   Zap, 
   AlertTriangle, 
@@ -24,7 +25,7 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { MatchAnalysis } from '@/src/services/geminiService';
+import { MatchAnalysis, formatAIError } from '@/src/services/geminiService';
 import { Skeleton } from '@/components/ui/skeleton';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -40,15 +41,43 @@ interface PredictionCardProps {
   analysis: MatchAnalysis;
   onQueryAgent?: () => void;
   onViewDetails?: () => void;
+  onRetry?: () => void;
   isFlashing?: boolean;
   highlighted?: boolean;
+  isAnalyzing?: boolean;
+  error?: string | null;
+  globalCooldown?: number | null;
 }
 
-export const PredictionCard: React.FC<PredictionCardProps> = ({ match, analysis, onQueryAgent, onViewDetails, isFlashing, highlighted }) => {
+export const PredictionCard: React.FC<PredictionCardProps> = ({ 
+  match, 
+  analysis, 
+  onQueryAgent, 
+  onViewDetails, 
+  onRetry,
+  isFlashing, 
+  highlighted,
+  isAnalyzing,
+  error,
+  globalCooldown
+}) => {
   const navigate = useNavigate();
   const { prediction, risk_assessment } = analysis;
   const [predictedScore, setPredictedScore] = useState<{ home: number | null, away: number | null }>({ home: null, away: null });
   const [isExpanded, setIsExpanded] = useState(false);
+  const [retryCountdown, setRetryCountdown] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!globalCooldown) {
+      setRetryCountdown(null);
+      return;
+    }
+    const interval = setInterval(() => {
+      const remaining = Math.ceil((globalCooldown - Date.now()) / 1000);
+      setRetryCountdown(remaining > 0 ? remaining : null);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [globalCooldown]);
 
   const homeTeam = match.homeTeam.name;
   const awayTeam = match.awayTeam.name;
@@ -62,14 +91,13 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({ match, analysis,
   };
 
   const isLive = ['IN_PLAY', 'PAUSED', 'LIVE'].includes(match.status);
-  const isPending = prediction.safe_side === 'PENDING SCAN';
 
   return (
     <Card className={cn(
       "bg-[#1a1a1a] border border-zinc-900 shadow-2xl text-zinc-100 overflow-hidden rounded-[32px] group/card transition-all duration-500 relative",
       highlighted && "ring-2 ring-yellow-500 shadow-[0_0_40px_rgba(234,179,8,0.3)] scale-[1.03] z-50",
       highlighted && "animate-pulse-subtle",
-      isPending && "opacity-80"
+      isAnalyzing && "opacity-80"
     )}>
       {/* Tactical Telemetry Overlay */}
       <div className="absolute inset-0 pointer-events-none opacity-[0.03] flex items-center justify-center overflow-hidden">
@@ -82,24 +110,57 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({ match, analysis,
         </div>
       </div>
 
-      {isPending && (
-        <div className="absolute inset-0 z-30 bg-zinc-950/60 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center">
-          <div className="relative mb-4">
-            <BrainCircuit className="w-10 h-10 text-yellow-500 animate-pulse" />
-            <motion.div 
-              animate={{ rotate: 360 }}
-              transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
-              className="absolute inset-0 border-t border-yellow-500/40 rounded-full scale-150"
-            />
-          </div>
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white mb-1">Tactical Scan In Progress</p>
-          <div className="flex gap-1">
-            <div className="w-1 h-1 bg-yellow-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
-            <div className="w-1 h-1 bg-yellow-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
-            <div className="w-1 h-1 bg-yellow-500 rounded-full animate-bounce" />
-          </div>
-        </div>
-      )}
+      <AnimatePresence>
+        {isAnalyzing && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-30 bg-zinc-950/60 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center"
+          >
+            <div className="relative mb-4">
+              <BrainCircuit className="w-10 h-10 text-yellow-500 animate-pulse" />
+              <motion.div 
+                animate={{ rotate: 360 }}
+                transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+                className="absolute inset-0 border-t border-yellow-500/40 rounded-full scale-150"
+              />
+            </div>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white mb-1">Tactical Scan In Progress</p>
+            <div className="flex gap-1">
+              <div className="w-1 h-1 bg-yellow-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
+              <div className="w-1 h-1 bg-yellow-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
+              <div className="w-1 h-1 bg-yellow-500 rounded-full animate-bounce" />
+            </div>
+          </motion.div>
+        )}
+
+        {error && !isAnalyzing && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="absolute inset-0 z-30 bg-red-950/20 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center border border-red-500/30 rounded-[32px]"
+          >
+            <div className="bg-red-500/20 p-3 rounded-full mb-3">
+               <AlertCircle className="w-6 h-6 text-red-500" />
+            </div>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white mb-2">Neural Link Interrupted</p>
+            <p className="text-[10px] text-zinc-400 font-medium mb-4 line-clamp-2 px-4">{formatAIError(error)}</p>
+            <Button 
+              size="sm" 
+              variant="outline" 
+              disabled={retryCountdown !== null}
+              className="h-8 text-[9px] font-black uppercase tracking-widest border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-500 disabled:opacity-50"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRetry?.();
+              }}
+            >
+              {retryCountdown ? `Retry in ${retryCountdown}s` : "Retry Sync"}
+            </Button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {highlighted && (
         <>
@@ -316,27 +377,123 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({ match, analysis,
               exit={{ height: 0, opacity: 0 }}
               className="overflow-hidden"
             >
-              <div className="px-6 pb-6 pt-2 space-y-4">
-                 <div className="p-4 bg-zinc-900/50 backdrop-blur-md rounded-2xl border border-zinc-800/50 group-hover:border-yellow-500/20 transition-colors relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-2 opacity-5">
-                       <Shield className="w-8 h-8" />
+              <div className="px-6 pb-6 pt-2">
+                <Tabs defaultValue="analysis" className="w-full">
+                  <TabsList className="grid w-full grid-cols-3 h-8 bg-black/40 border border-zinc-900 rounded-lg mb-4 p-1">
+                    <TabsTrigger value="analysis" className="text-[8px] font-black uppercase tracking-[0.15em] data-[state=active]:bg-zinc-800 data-[state=active]:text-yellow-500">Analysis Audit</TabsTrigger>
+                    <TabsTrigger value="lineups" className="text-[8px] font-black uppercase tracking-[0.15em] data-[state=active]:bg-zinc-800 data-[state=active]:text-yellow-500">Tactical Lineups</TabsTrigger>
+                    <TabsTrigger value="odds" className="text-[8px] font-black uppercase tracking-[0.15em] data-[state=active]:bg-zinc-800 data-[state=active]:text-yellow-500">Market Odds</TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="analysis" className="space-y-4 mt-0">
+                    <div className="p-4 bg-zinc-900/50 backdrop-blur-md rounded-2xl border border-zinc-800/50 group-hover:border-yellow-500/20 transition-colors relative overflow-hidden">
+                      <div className="absolute top-0 right-0 p-2 opacity-5">
+                         <Shield className="w-8 h-8" />
+                      </div>
+                      <p className="text-[11px] text-zinc-400 leading-relaxed font-medium relative z-10">
+                        <span className="text-yellow-500 font-black uppercase mr-2 tracking-widest text-[9px]">Decision Summary:</span>
+                        {analysis.reasoning_summary}
+                      </p>
                     </div>
-                    <p className="text-[11px] text-zinc-400 leading-relaxed font-medium relative z-10">
-                      <span className="text-yellow-500 font-black uppercase mr-2 tracking-widest text-[9px]">Decision Summary:</span>
-                      {analysis.reasoning_summary}
-                    </p>
-                 </div>
-                 <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-[#111] p-3 rounded-xl border border-zinc-900">
-                       <p className="text-[9px] uppercase font-black text-zinc-600 mb-1">Expected xG</p>
-                       <p className="text-sm font-bold">{prediction.expected_goals.home} - {prediction.expected_goals.away}</p>
+                    <div className="grid grid-cols-2 gap-3">
+                       <div className="bg-[#111] p-3 rounded-xl border border-zinc-900">
+                          <p className="text-[9px] uppercase font-black text-zinc-600 mb-1">Expected xG</p>
+                          <p className="text-sm font-bold">{prediction.expected_goals?.home} - {prediction.expected_goals?.away}</p>
+                       </div>
+                       <div className="bg-[#111] p-3 rounded-xl border border-zinc-900">
+                          <p className="text-[9px] uppercase font-black text-zinc-600 mb-1">AI Scoreline</p>
+                          <p className="text-sm font-bold text-yellow-500">{prediction.scoreline}</p>
+                       </div>
                     </div>
-                    <div className="bg-[#111] p-3 rounded-xl border border-zinc-900">
-                       <p className="text-[9px] uppercase font-black text-zinc-600 mb-1">AI Scoreline</p>
-                       <p className="text-sm font-bold text-yellow-500">{prediction.scoreline}</p>
+                  </TabsContent>
+
+                  <TabsContent value="lineups" className="mt-0">
+                    {analysis.predicted_lineups ? (
+                      <div className="grid grid-cols-2 gap-4">
+                        {/* Home Lineup */}
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between border-b border-zinc-900 pb-2">
+                            <span className="text-[9px] font-black uppercase text-zinc-500">HOME</span>
+                            <Badge variant="outline" className="text-[8px] border-zinc-800 text-zinc-400">{analysis.predicted_lineups.home.formation}</Badge>
+                          </div>
+                          <div className="space-y-1.5 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
+                            {analysis.predicted_lineups.home.starting_xi.map((player, idx) => (
+                              <div key={idx} className="flex items-center justify-between text-[10px] bg-zinc-900/30 p-1.5 rounded border border-transparent hover:border-zinc-800 transition-colors">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[8px] font-mono text-zinc-600 w-4 uppercase">{player.position}</span>
+                                  <span className={cn("font-medium", player.is_key_player && "text-yellow-500")}>{player.name}</span>
+                                </div>
+                                {player.is_key_player && <Zap className="w-2.5 h-2.5 text-yellow-500 fill-yellow-500" />}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Away Lineup */}
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between border-b border-zinc-900 pb-2">
+                            <span className="text-[9px] font-black uppercase text-zinc-500">AWAY</span>
+                            <Badge variant="outline" className="text-[8px] border-zinc-800 text-zinc-400">{analysis.predicted_lineups.away.formation}</Badge>
+                          </div>
+                          <div className="space-y-1.5 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
+                            {analysis.predicted_lineups.away.starting_xi.map((player, idx) => (
+                              <div key={idx} className="flex items-center justify-between text-[10px] bg-zinc-900/30 p-1.5 rounded border border-transparent hover:border-zinc-800 transition-colors">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[8px] font-mono text-zinc-600 w-4 uppercase">{player.position}</span>
+                                  <span className={cn("font-medium", player.is_key_player && "text-yellow-500")}>{player.name}</span>
+                                </div>
+                                {player.is_key_player && <Zap className="w-2.5 h-2.5 text-yellow-500 fill-yellow-500" />}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center py-8 text-center space-y-2 opacity-50">
+                        <Shield className="w-8 h-8 text-zinc-700" />
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Lineup data unavailable</p>
+                        <p className="text-[9px] text-zinc-700 max-w-[180px]">Re-run tactical analysis to fetch predicted starting XI insights.</p>
+                      </div>
+                    )}
+                  </TabsContent>
+
+                  <TabsContent value="odds" className="mt-0">
+                    <div className="space-y-4">
+                      {analysis.odds_data && analysis.odds_data.length > 0 ? (
+                        <div className="space-y-2">
+                          <div className="grid grid-cols-5 gap-2 px-2 pb-1 border-b border-zinc-900">
+                             <div className="col-span-2 text-[8px] font-black uppercase text-zinc-600">Bookmaker</div>
+                             <div className="text-[8px] font-black uppercase text-zinc-600 text-center">1</div>
+                             <div className="text-[8px] font-black uppercase text-zinc-600 text-center">X</div>
+                             <div className="text-[8px] font-black uppercase text-zinc-600 text-center">2</div>
+                          </div>
+                          <div className="space-y-1 max-h-[220px] overflow-y-auto pr-1 custom-scrollbar">
+                             {analysis.odds_data.map((odd, idx) => (
+                               <div key={idx} className="grid grid-cols-5 gap-2 items-center p-2 bg-zinc-900/40 rounded-lg border border-transparent hover:border-zinc-800 transition-colors">
+                                  <div className="col-span-2 flex items-center gap-2">
+                                     <span className="text-[10px] font-bold text-zinc-300">{odd.bookmaker}</span>
+                                     {odd.market_movement === 'up' && <TrendingUp className="w-2.5 h-2.5 text-emerald-500" />}
+                                     {odd.market_movement === 'down' && <TrendingUp className="w-2.5 h-2.5 text-red-500 rotate-180" />}
+                                  </div>
+                                  <div className="text-[10px] font-mono font-bold text-center text-zinc-100">{odd.home_win.toFixed(2)}</div>
+                                  <div className="text-[10px] font-mono font-bold text-center text-zinc-400">{odd.draw.toFixed(2)}</div>
+                                  <div className="text-[10px] font-mono font-bold text-center text-zinc-100">{odd.away_win.toFixed(2)}</div>
+                               </div>
+                             ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center py-8 text-center space-y-2 opacity-50">
+                          <BarChart3 className="w-8 h-8 text-zinc-700" />
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Odds data unavailable</p>
+                          <p className="text-[9px] text-zinc-700 max-w-[180px]">Real-time market odds will appear after the next tactical audit.</p>
+                        </div>
+                      )}
                     </div>
-                 </div>
-                 <div className="flex items-center justify-center gap-3">
+                  </TabsContent>
+                </Tabs>
+
+                <div className="flex items-center justify-center gap-3 mt-6">
                     <button 
                       onClick={onQueryAgent}
                       className="text-[10px] font-black uppercase text-zinc-500 hover:text-yellow-500 flex items-center gap-2 transition-colors"
