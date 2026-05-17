@@ -98,7 +98,7 @@ export const HistoricalAnalysis: React.FC<HistoricalAnalysisProps> = ({ data }) 
             </h4>
             <div className="flex items-baseline gap-2">
               <span className="text-5xl font-black text-emerald-500 leading-none">
-                {Math.max(...data.map(d => d.accuracy)).toFixed(1)}%
+                {(data.length > 0 ? Math.max(...data.map(d => d.accuracy || 0)) : 0).toFixed(1)}%
               </span>
               <span className="text-emerald-500/40 text-[10px] font-bold uppercase tracking-widest">Single Session</span>
             </div>

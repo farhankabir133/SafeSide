@@ -24,7 +24,9 @@ import {
   AlertTriangle,
   Loader2,
   Brain,
-  Users
+  Users,
+  Shield,
+  Terminal
 } from 'lucide-react';
 import { Button } from '@/src/components/ui/button';
 import { Badge } from '@/src/components/ui/badge';
@@ -35,6 +37,7 @@ import { Progress } from '@/src/components/ui/progress';
 import { Card, CardHeader, CardContent, CardFooter } from '@/src/components/ui/card';
 import { cn } from '@/src/lib/utils';
 import { MatchAnalysis, analyzeMatch } from '@/src/services/geminiService';
+import { supabase, isSupabaseConfigured, HistoricalTrend } from '@/src/lib/supabase';
 import ReactMarkdown from 'react-markdown';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell, LineChart, Line } from 'recharts';
 import { toast } from 'sonner';
@@ -57,13 +60,54 @@ export default function MatchDetailPage() {
   const [lineups, setLineups] = useState<any>(null);
   const [weather, setWeather] = useState<any>(null);
   const [odds, setOdds] = useState<any>(null);
+  const [teamStats, setTeamStats] = useState<any>(null);
   const [analysis, setAnalysis] = useState<MatchAnalysis | null>(null);
+  const [historicalTrends, setHistoricalTrends] = useState<HistoricalTrend | null>(null);
   const [streamedText, setStreamedText] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [loading, setLoading] = useState(true);
   const [scoreFlash, setScoreFlash] = useState(false);
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [displayMinute, setDisplayMinute] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState('overview');
   const [isReasoningExpanded, setIsReasoningExpanded] = useState(false);
+  const [isReportReasoningExpanded, setIsReportReasoningExpanded] = useState(false);
+  const [isInsightsExpanded, setIsInsightsExpanded] = useState(false);
+  const [isTrendsExpanded, setIsTrendsExpanded] = useState(false);
+  const [h2hFilter, setH2hFilter] = useState<'all' | 'recent'>('recent');
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!matchDetails || !['IN_PLAY', 'LIVE'].includes(matchDetails.status)) {
+      setDisplayMinute(null);
+      return;
+    }
+
+    // Use minute from API if available as baseline
+    const apiMin = matchDetails.minute;
+    if (apiMin) {
+      setDisplayMinute(apiMin);
+    } else {
+      // Estimate based on kickoff if minute is missing
+      const start = new Date(matchDetails.utcDate).getTime();
+      const now = Date.now();
+      const elapsed = Math.floor((now - start) / 60000);
+      setDisplayMinute(Math.max(1, Math.min(elapsed, 95)));
+    }
+  }, [matchDetails?.minute, matchDetails?.status, matchDetails?.id]);
+
+  useEffect(() => {
+    if (displayMinute !== null && ['IN_PLAY', 'LIVE'].includes(matchDetails?.status)) {
+      const interval = setInterval(() => {
+        setDisplayMinute(prev => (prev !== null ? prev + 1 : 1));
+      }, 60000);
+      return () => clearInterval(interval);
+    }
+  }, [displayMinute === null, matchDetails?.status]);
 
   useEffect(() => {
     if (!matchId) return;
@@ -85,6 +129,20 @@ export default function MatchDetailPage() {
           const city = venueToCity[details.venue] || details.area?.name || 'London';
           const weatherRes = await fetch(`/api/weather/${encodeURIComponent(city)}`);
           if (weatherRes.ok) setWeather(await weatherRes.json());
+
+          // Fetch Historical Trends for this competition
+          if (isSupabaseConfigured() && details.competition?.id) {
+            try {
+              const { data } = await supabase
+                .from('historical_trends')
+                .select('*')
+                .eq('league_id', details.competition.id.toString())
+                .single();
+              if (data) setHistoricalTrends(data);
+            } catch (e) {
+              console.warn("Competition trends node bypassed:", e);
+            }
+          }
         }
 
         if (h2hRes.status === 'fulfilled' && h2hRes.value.ok)
@@ -96,6 +154,29 @@ export default function MatchDetailPage() {
         if (oddsRes.status === 'fulfilled' && oddsRes.value.ok)
           setOdds(await oddsRes.value.json());
 
+        // Fetch Detailed Team Stats and Recent Matches
+        if (matchDetails?.homeTeam?.id && matchDetails?.awayTeam?.id) {
+          const [homeStatsRes, awayStatsRes, homeMatchesRes, awayMatchesRes] = await Promise.all([
+            fetch(`/api/teams/${matchDetails.homeTeam.id}`),
+            fetch(`/api/teams/${matchDetails.awayTeam.id}`),
+            fetch(`/api/teams/${matchDetails.homeTeam.id}/matches?status=FINISHED&limit=5`),
+            fetch(`/api/teams/${matchDetails.awayTeam.id}/matches?status=FINISHED&limit=5`)
+          ]);
+
+          if (homeStatsRes.ok && awayStatsRes.ok) {
+            const hStats = await homeStatsRes.json();
+            const aStats = await awayStatsRes.json();
+            
+            if (homeMatchesRes.ok) hStats.recentMatches = (await homeMatchesRes.json()).matches;
+            if (awayMatchesRes.ok) aStats.recentMatches = (await awayMatchesRes.json()).matches;
+
+            setTeamStats({
+              home: hStats,
+              away: aStats
+            });
+          }
+        }
+
       } finally {
         setLoading(false);
       }
@@ -104,18 +185,21 @@ export default function MatchDetailPage() {
     fetchAll();
 
     const interval = setInterval(() => {
-      if (['IN_PLAY', 'PAUSED', 'LIVE'].includes(matchDetails?.status)) {
-        fetch(`/api/matches/${matchId}`).then(r => r.json()).then(data => {
+      const isMatchLive = ['IN_PLAY', 'PAUSED', 'LIVE'].includes(matchDetails?.status);
+      
+      // Poll every 10s if live, 60s if not
+      fetch(`/api/matches/${matchId}`).then(r => r.json()).then(data => {
+        if (matchDetails) {
           const prevScore = `${matchDetails.score?.fullTime?.home}-${matchDetails.score?.fullTime?.away}`;
           const newScore = `${data.score?.fullTime?.home}-${data.score?.fullTime?.away}`;
           if (prevScore !== newScore) {
             setScoreFlash(true);
             setTimeout(() => setScoreFlash(false), 2000);
           }
-          setMatchDetails(data);
-        });
-      }
-    }, 30000);
+        }
+        setMatchDetails(data);
+      });
+    }, (['IN_PLAY', 'PAUSED', 'LIVE'].includes(matchDetails?.status)) ? 10000 : 30000);
 
     return () => clearInterval(interval);
   }, [matchId, matchDetails?.status]);
@@ -128,10 +212,10 @@ export default function MatchDetailPage() {
     try {
       // Fetch Detailed Team Stats and Recent Matches for both teams concurrently
       const [homeStatsRes, awayStatsRes, homeMatchesRes, awayMatchesRes] = await Promise.all([
-        fetch(`/api/teams/${matchDetails.homeTeam.id}`),
-        fetch(`/api/teams/${matchDetails.awayTeam.id}`),
-        fetch(`/api/teams/${matchDetails.homeTeam.id}/matches?status=FINISHED&limit=5`),
-        fetch(`/api/teams/${matchDetails.awayTeam.id}/matches?status=FINISHED&limit=5`)
+        fetch(`/api/teams/${matchDetails.homeTeam?.id || 0}`),
+        fetch(`/api/teams/${matchDetails.awayTeam?.id || 0}`),
+        fetch(`/api/teams/${matchDetails.homeTeam?.id || 0}/matches?status=FINISHED&limit=5`),
+        fetch(`/api/teams/${matchDetails.awayTeam?.id || 0}/matches?status=FINISHED&limit=5`)
       ]);
 
       let teamStats: any = undefined;
@@ -146,7 +230,7 @@ export default function MatchDetailPage() {
         if (awayMatchesRes.ok) teamStats.away.recentMatches = (await awayMatchesRes.json()).matches;
       }
 
-      const result = await analyzeMatch(matchDetails, h2hData, teamStats, weather, lineups, odds);
+      const result = await analyzeMatch(matchDetails, h2hData, teamStats, weather, lineups, odds, historicalTrends);
       setAnalysis(result);
       setStreamedText(result.reasoning_summary);
       setIsReasoningExpanded(true);
@@ -194,16 +278,28 @@ export default function MatchDetailPage() {
     <div className="min-h-screen bg-black pb-20">
       <div className="max-w-7xl mx-auto px-4 py-6">
         {/* Breadcrumb */}
-        <div className="flex items-center gap-4 mb-8">
-          <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="text-zinc-500 hover:text-white">
-            <ChevronLeft className="w-4 h-4 mr-1" />
-            Back
-          </Button>
-          <Separator orientation="vertical" className="h-4 bg-zinc-800" />
-          <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-zinc-500">
-            <span>{matchDetails.competition?.name}</span>
-            <span className="text-zinc-800">/</span>
-            <span className="text-zinc-300">{matchDetails.homeTeam?.name} vs {matchDetails.awayTeam?.name}</span>
+        <div className="flex items-center justify-between gap-4 mb-8">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="text-zinc-500 hover:text-white">
+              <ChevronLeft className="w-4 h-4 mr-1" />
+              Back
+            </Button>
+            <Separator orientation="vertical" className="h-4 bg-zinc-800" />
+            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-zinc-500">
+              <span>{matchDetails.competition?.name || 'Competition'}</span>
+              <span className="text-zinc-800">/</span>
+              <span className="text-zinc-300">{matchDetails.homeTeam?.name || 'Home'} vs {matchDetails.awayTeam?.name || 'Away'}</span>
+            </div>
+          </div>
+          
+          <div className="flex flex-col items-end">
+            <div className="flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">Terminal Mission Clock</span>
+            </div>
+            <span className="text-xs font-black font-mono text-zinc-300">
+              {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
+            </span>
           </div>
         </div>
 
@@ -221,7 +317,7 @@ export default function MatchDetailPage() {
                  <img src={matchDetails.competition.emblem} className="w-10 h-10 object-contain opacity-60" referrerPolicy="no-referrer" />
                )}
                <div className="flex flex-col">
-                 <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">{matchDetails.competition?.name}</span>
+                 <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">{matchDetails.competition?.name || 'Competition'}</span>
                  <span className="text-[10px] font-mono text-zinc-600">{matchDetails.venue} · {new Date(matchDetails.utcDate).toLocaleDateString()}</span>
                </div>
             </div>
@@ -239,7 +335,7 @@ export default function MatchDetailPage() {
                   <img src={matchDetails.homeTeam?.crest} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
                 </div>
                 <div>
-                   <h3 className="text-2xl md:text-3xl font-black tracking-tighter uppercase mb-1">{matchDetails.homeTeam?.name}</h3>
+                   <h3 className="text-2xl md:text-3xl font-black tracking-tighter uppercase mb-1">{matchDetails.homeTeam?.name || 'TBD'}</h3>
                    <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Home Team</span>
                 </div>
               </div>
@@ -252,7 +348,7 @@ export default function MatchDetailPage() {
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                         <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
                       </span>
-                      Live · {matchDetails.minute || '1'}'
+                      Live · {displayMinute || matchDetails.minute || '1'}'
                     </Badge>
                  )}
                  <div className={cn(
@@ -264,8 +360,11 @@ export default function MatchDetailPage() {
                    {matchDetails.score?.fullTime?.away ?? (isUpcoming ? '–' : '0')}
                  </div>
                  {isUpcoming && (
-                   <div className="text-sm font-black font-mono text-zinc-500 bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2">
-                     KICK-OFF @ {new Date(matchDetails.utcDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                   <div className="text-[10px] font-black font-mono text-zinc-500 bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2 flex flex-col items-center gap-0.5">
+                      <span className="opacity-50 tracking-[0.2em]">MISSION DEPLOYMENT @</span>
+                      <span className="text-sm text-white">
+                        {new Date(matchDetails.utcDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })} LOCAL
+                      </span>
                    </div>
                  )}
                  <StatusBadge status={matchDetails.status} />
@@ -282,7 +381,7 @@ export default function MatchDetailPage() {
                   <img src={matchDetails.awayTeam?.crest} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
                 </div>
                 <div>
-                  <h3 className="text-2xl md:text-3xl font-black tracking-tighter uppercase mb-1">{matchDetails.awayTeam?.name}</h3>
+                  <h3 className="text-2xl md:text-3xl font-black tracking-tighter uppercase mb-1">{matchDetails.awayTeam?.name || 'TBD'}</h3>
                   <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Away Team</span>
                 </div>
               </div>
@@ -307,7 +406,7 @@ export default function MatchDetailPage() {
 
         {/* AI Reasoning Summary (Collapsible) */}
         <AnimatePresence>
-          {(analysis?.reasoning_summary || streamedText) && (
+          {(analysis?.reasoning_summary || streamedText || isGenerating) && (
             <motion.div
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -321,7 +420,7 @@ export default function MatchDetailPage() {
                   <div className="flex items-center gap-3">
                     <BrainCircuit className={cn("w-5 h-5", isGenerating ? "text-yellow-500 animate-pulse" : "text-yellow-500")} />
                     <span className="text-sm font-black uppercase tracking-widest text-zinc-300">
-                      {isGenerating ? "Synthesizing AI Audit..." : "AI Intelligence Audit"}
+                      {isGenerating && !streamedText ? "Initiating Neural Audit..." : isGenerating ? "Synthesizing AI Audit..." : "AI Intelligence Audit"}
                     </span>
                   </div>
                   <motion.div
@@ -341,10 +440,19 @@ export default function MatchDetailPage() {
                       transition={{ duration: 0.3 }}
                     >
                       <div className="p-8 md:p-10 bg-zinc-950">
-                        <div className="prose prose-invert prose-emerald max-w-none text-zinc-300 leading-relaxed font-medium">
-                          <ReactMarkdown>{streamedText || analysis?.reasoning_summary || ''}</ReactMarkdown>
-                          {isGenerating && <span className="inline-block w-2 h-5 bg-yellow-500 animate-pulse ml-2" />}
-                        </div>
+                        {isGenerating && !streamedText ? (
+                          <div className="space-y-3">
+                            <Skeleton className="h-4 w-full bg-zinc-900" />
+                            <Skeleton className="h-4 w-[95%] bg-zinc-900" />
+                            <Skeleton className="h-4 w-[90%] bg-zinc-900" />
+                            <Skeleton className="h-4 w-2/3 bg-zinc-900" />
+                          </div>
+                        ) : (
+                          <div className="prose prose-invert prose-emerald max-w-none text-zinc-300 leading-relaxed font-medium">
+                            <ReactMarkdown>{streamedText || analysis?.reasoning_summary || ''}</ReactMarkdown>
+                            {isGenerating && <span className="inline-block w-2 h-5 bg-yellow-500 animate-pulse ml-2" />}
+                          </div>
+                        )}
                       </div>
                     </motion.div>
                   )}
@@ -447,7 +555,7 @@ export default function MatchDetailPage() {
                              <div className="w-full bg-zinc-800 rounded-full h-1">
                                <div className="h-1 bg-yellow-500 rounded-full" style={{ width: `${item.probability * 100}%` }} />
                              </div>
-                             <span className="text-[10px] font-mono text-zinc-500">{(item.probability * 100).toFixed(1)}%</span>
+                             <span className="text-[10px] font-mono text-zinc-500">{(item.probability ? (item.probability * 100) : 0).toFixed(1)}%</span>
                            </div>
                          ))}
                          {!analysis && Array(6).fill(0).map((_, i) => <Skeleton key={i} className="h-28 bg-zinc-900 rounded-2xl" />)}
@@ -458,7 +566,7 @@ export default function MatchDetailPage() {
                 <div className="lg:col-span-4 space-y-8">
                    <Card className="bg-zinc-950 border-zinc-900 rounded-[32px] p-6 space-y-6">
                       <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Match Chronology</h4>
-                      <MatchTimeline goals={matchDetails.goals || []} homeTeam={matchDetails.homeTeam.name} />
+                      <MatchTimeline goals={matchDetails.goals || []} homeTeam={matchDetails.homeTeam?.name || ''} />
                    </Card>
 
                    {weather && (
@@ -505,109 +613,660 @@ export default function MatchDetailPage() {
 
           <TabsContent value="form">
              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-               <FormPanel side="home" teamName={matchDetails.homeTeam.name} />
-               <FormPanel side="away" teamName={matchDetails.awayTeam.name} />
+               <FormPanel 
+                 side="home" 
+                 teamName={matchDetails.homeTeam?.name || 'Home'} 
+                 teamId={matchDetails.homeTeam?.id}
+                 recentMatches={teamStats?.home?.recentMatches}
+               />
+               <FormPanel 
+                 side="away" 
+                 teamName={matchDetails.awayTeam?.name || 'Away'} 
+                 teamId={matchDetails.awayTeam?.id}
+                 recentMatches={teamStats?.away?.recentMatches}
+               />
              </div>
           </TabsContent>
 
           <TabsContent value="h2h">
              <div className="space-y-12">
-                <Card className="bg-zinc-950 border-zinc-900 rounded-[40px] p-10">
-                   <div className="space-y-8">
-                      <div className="flex items-center justify-between">
-                         <h3 className="text-2xl font-black uppercase tracking-tighter">Engagement History Summary</h3>
-                         <Badge variant="outline" className="border-zinc-800 text-zinc-500 text-[10px] font-black">
-                           {h2hData?.aggregates?.numberOfMatches || 0} TOTAL OPERATIONS
-                         </Badge>
+                <Card className="bg-zinc-950 border-zinc-900 rounded-[40px] p-10 relative overflow-hidden">
+                   <div className="absolute top-0 right-0 p-10 opacity-5 pointer-events-none">
+                      <History className="w-40 h-40" />
+                   </div>
+                   <div className="relative z-10 space-y-10">
+                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                         <div className="space-y-1">
+                            <h3 className="text-2xl font-black uppercase tracking-tighter">Engagement History Summary</h3>
+                            <p className="text-[10px] text-zinc-500 font-medium tracking-widest uppercase">Global Tactical Reconnaissance</p>
+                         </div>
+                         <div className="flex items-center gap-8">
+                            <div className="flex flex-col items-end">
+                               <span className="text-[8px] font-black uppercase text-zinc-600 tracking-widest mb-2">Tactical Form (Last 3)</span>
+                               <div className="flex gap-2">
+                                  {h2hData?.matches?.slice(0, 3).map((m: any, i: number) => {
+                                    const isHomeWinner = m.score.winner === 'HOME_TEAM';
+                                    const isAwayWinner = m.score.winner === 'AWAY_TEAM';
+                                    return (
+                                      <div key={i} className={cn(
+                                        "w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black border-2 transition-all",
+                                        isHomeWinner ? "bg-emerald-500/10 border-emerald-500 text-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.3)]" :
+                                        isAwayWinner ? "bg-blue-500/10 border-blue-500 text-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.3)]" :
+                                        "bg-zinc-800 border-zinc-700 text-zinc-500"
+                                      )}>
+                                        {isHomeWinner ? 'H' : isAwayWinner ? 'A' : 'D'}
+                                      </div>
+                                    );
+                                  })}
+                               </div>
+                            </div>
+                            <div className="flex items-center gap-2 bg-zinc-900/50 p-1 rounded-2xl border border-zinc-800">
+                            <Button 
+                              size="sm" 
+                              variant={h2hFilter === 'recent' ? 'default' : 'ghost'}
+                              onClick={() => setH2hFilter('recent')}
+                              className={cn(
+                                "rounded-xl text-[9px] font-black uppercase tracking-widest h-9 px-4",
+                                h2hFilter === 'recent' ? "bg-yellow-500 text-black hover:bg-yellow-400" : "text-zinc-500 hover:text-white"
+                              )}
+                            >
+                              Recent (5)
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant={h2hFilter === 'all' ? 'default' : 'ghost'}
+                              onClick={() => setH2hFilter('all')}
+                              className={cn(
+                                "rounded-xl text-[9px] font-black uppercase tracking-widest h-9 px-4",
+                                h2hFilter === 'all' ? "bg-yellow-500 text-black hover:bg-yellow-400" : "text-zinc-500 hover:text-white"
+                              )}
+                            >
+                              Legacy All
+                            </Button>
+                         </div>
                       </div>
-                      <H2HWinBar 
-                        home={h2hData?.aggregates?.homeTeam?.wins || 0} 
-                        draw={h2hData?.aggregates?.homeTeam?.draws || 0} 
-                        away={h2hData?.aggregates?.awayTeam?.wins || 0} 
-                        total={h2hData?.aggregates?.numberOfMatches || 1} 
-                      />
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                        <IntelligenceMetric label="Avg Goals" value={(h2hData?.matches?.reduce((a: any, b: any) => a + (b.score.fullTime.home + b.score.fullTime.away), 0) / h2hData?.matches?.length || 0).toFixed(1)} />
-                        <IntelligenceMetric label="BTTS Rate" value={`${Math.round((h2hData?.matches?.filter((m: any) => m.score.fullTime.home > 0 && m.score.fullTime.away > 0).length / h2hData?.matches?.length || 0) * 100)}%`} />
-                        <IntelligenceMetric label="Over 2.5" value={`${Math.round((h2hData?.matches?.filter((m: any) => (m.score.fullTime.home + m.score.fullTime.away) > 2.5).length / h2hData?.matches?.length || 0) * 100)}%`} />
-                        <IntelligenceMetric label="Latest Winner" value={h2hData?.matches?.[0]?.score?.winner === 'HOME_TEAM' ? 'Home' : h2hData?.matches?.[0]?.score?.winner === 'AWAY_TEAM' ? 'Away' : 'Draw'} />
+                   </div>
+                      
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+                        <H2HWinBar 
+                          home={h2hData?.aggregates?.homeTeam?.wins || 0} 
+                          draw={h2hData?.aggregates?.homeTeam?.draws || 0} 
+                          away={h2hData?.aggregates?.awayTeam?.wins || 0} 
+                          total={h2hData?.aggregates?.numberOfMatches || 1} 
+                        />
+                        
+                        <div className="grid grid-cols-2 gap-6">
+                           <div className="bg-zinc-900/40 border border-zinc-900 rounded-[32px] p-8 flex flex-col items-center justify-center gap-3 text-center group hover:border-emerald-500/30 transition-all">
+                              <span className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">Aggregate Host Supremacy</span>
+                              <span className="text-4xl font-black text-emerald-500 tracking-tighter">
+                                {h2hData?.aggregates?.numberOfMatches ? Math.round((h2hData.aggregates.homeTeam.wins / h2hData.aggregates.numberOfMatches) * 100) : 0}%
+                              </span>
+                              <div className="w-16 h-1.5 bg-emerald-950 rounded-full overflow-hidden">
+                                 <motion.div 
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${h2hData?.aggregates?.numberOfMatches ? (h2hData.aggregates.homeTeam.wins / h2hData.aggregates.numberOfMatches) * 100 : 0}%` }}
+                                    className="h-full bg-emerald-500" 
+                                 />
+                              </div>
+                           </div>
+                           <div className="bg-zinc-900/40 border border-zinc-900 rounded-[32px] p-8 flex flex-col items-center justify-center gap-3 text-center group hover:border-blue-500/30 transition-all">
+                              <span className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">Aggregate Assailant Power</span>
+                              <span className="text-4xl font-black text-blue-500 tracking-tighter">
+                                {h2hData?.aggregates?.numberOfMatches ? Math.round((h2hData.aggregates.awayTeam.wins / h2hData.aggregates.numberOfMatches) * 100) : 0}%
+                              </span>
+                              <div className="w-16 h-1.5 bg-blue-950 rounded-full overflow-hidden">
+                                 <motion.div 
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${h2hData?.aggregates?.numberOfMatches ? (h2hData.aggregates.awayTeam.wins / h2hData.aggregates.numberOfMatches) * 100 : 0}%` }}
+                                    className="h-full bg-blue-500" 
+                                 />
+                              </div>
+                           </div>
+                        </div>
+                      </div>
+
+                      <div className="pt-8 pb-4">
+                         <div className="flex items-center gap-3 mb-6">
+                            <span className="text-[10px] font-bold text-zinc-600 tracking-widest uppercase">Engagement Analytics (Recent 3)</span>
+                            <div className="h-px flex-1 bg-zinc-900/50" />
+                         </div>
+                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            {h2hData?.matches?.slice(0, 3).map((m: any, i: number) => (
+                               <div key={i} className="bg-zinc-900/20 border border-zinc-900/50 rounded-3xl p-6 flex flex-col items-center gap-4 group hover:bg-zinc-900/40 transition-all">
+                                  <div className="flex items-center justify-between w-full text-[9px] font-black uppercase tracking-widest text-zinc-600">
+                                     <span>{new Date(m.utcDate).getFullYear()}</span>
+                                     <span>{m.competition.code}</span>
+                                  </div>
+                                  <div className="flex items-center gap-4">
+                                     <div className="flex flex-col items-center">
+                                        <span className="text-2xl font-black text-white">{m.score.fullTime.home}</span>
+                                     </div>
+                                     <div className="w-px h-8 bg-zinc-800" />
+                                     <div className="flex flex-col items-center">
+                                        <span className="text-2xl font-black text-white">{m.score.fullTime.away}</span>
+                                     </div>
+                                  </div>
+                                  <div className={cn(
+                                    "px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border",
+                                    m.score.winner === 'HOME_TEAM' ? "bg-emerald-500/10 border-emerald-500 text-emerald-500" :
+                                    m.score.winner === 'AWAY_TEAM' ? "bg-blue-500/10 border-blue-500 text-blue-500" :
+                                    "bg-zinc-800 border-zinc-700 text-zinc-500"
+                                  )}>
+                                    {m.score.winner === 'HOME_TEAM' ? 'Host Victory' : m.score.winner === 'AWAY_TEAM' ? 'Assailant Win' : 'Tactical Draw'}
+                                  </div>
+                               </div>
+                            ))}
+                         </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-6 pt-4">
+                        <IntelligenceMetric label="Engagement Count" value={h2hData?.aggregates?.numberOfMatches || 0} />
+                        <IntelligenceMetric label="Avg Goals" value={h2hData?.matches?.length ? (h2hData.matches.reduce((a: any, b: any) => a + ((b.score?.fullTime?.home ?? 0) + (b.score?.fullTime?.away ?? 0)), 0) / h2hData.matches.length).toFixed(1) : '0.0'} />
+                        <IntelligenceMetric label="BTTS Strike" value={h2hData?.matches?.length ? `${Math.round((h2hData.matches.filter((m: any) => m.score.fullTime.home > 0 && m.score.fullTime.away > 0).length / h2hData.matches.length) * 100)}%` : '0%'} />
+                        <IntelligenceMetric label="Strategic Deadlocks" value={h2hData?.aggregates?.homeTeam?.draws ? `${Math.round((h2hData.aggregates.homeTeam.draws / (h2hData.aggregates.numberOfMatches || 1)) * 100)}%` : '0%'} />
                       </div>
                    </div>
                 </Card>
+                
+                {historicalTrends && (
+                  <div className="space-y-6">
+                    <div className="flex items-center gap-3 px-4">
+                      <div className="w-8 h-8 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
+                        <History className="w-4 h-4 text-blue-500" />
+                      </div>
+                      <div className="flex flex-col">
+                        <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">Competition Archetype Trends</h4>
+                        <span className="text-[8px] font-bold text-zinc-600 uppercase tracking-widest">{historicalTrends.sample_size_years}-Year Neural Baseline</span>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                      <Card className="bg-zinc-950/50 border-zinc-900 rounded-[32px] p-8 flex flex-col gap-6 group hover:border-zinc-800 transition-all">
+                        <div className="flex justify-between items-center text-[9px] font-black uppercase tracking-widest text-zinc-500">
+                          <span>Home/Away Power Balance</span>
+                          <Trophy className="w-3.5 h-3.5 opacity-30" />
+                        </div>
+                        <div className="space-y-4">
+                           <div className="flex justify-between items-end">
+                              <div className="flex flex-col">
+                                 <span className="text-[8px] font-black text-emerald-500 uppercase mb-1">League Home %</span>
+                                 <span className="text-3xl font-black">{historicalTrends.win_rate_home}%</span>
+                              </div>
+                              <div className="flex flex-col items-end">
+                                 <span className="text-[8px] font-black text-blue-500 uppercase mb-1">League Away %</span>
+                                 <span className="text-3xl font-black">{historicalTrends.win_rate_away}%</span>
+                              </div>
+                           </div>
+                           <div className="h-3 flex rounded-full overflow-hidden bg-zinc-900 border border-zinc-800">
+                              <motion.div 
+                                initial={{ width: 0 }}
+                                animate={{ width: `${historicalTrends.win_rate_home}%` }}
+                                className="h-full bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.2)]" 
+                              />
+                              <div className="flex-1 bg-zinc-800" />
+                              <motion.div 
+                                initial={{ width: 0 }}
+                                animate={{ width: `${historicalTrends.win_rate_away}%` }}
+                                className="h-full bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.2)]" 
+                              />
+                           </div>
+                           <p className="text-[9px] text-zinc-600 italic leading-relaxed">
+                             Neural analysis identifies a {historicalTrends.win_rate_home > 40 ? 'significant' : 'moderate'} Host advantage for this competition node.
+                           </p>
+                        </div>
+                      </Card>
 
-                <div className="space-y-6">
-                   <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 px-4">Tactical Engagement Logs</h4>
+                      <Card className="bg-zinc-950/50 border-zinc-900 rounded-[32px] p-8 flex flex-col gap-6 group hover:border-zinc-800 transition-all">
+                        <div className="flex justify-between items-center text-[9px] font-black uppercase tracking-widest text-zinc-500">
+                          <span>Tactical Anomaly Frequency</span>
+                          <Zap className="w-3.5 h-3.5 opacity-30" />
+                        </div>
+                        <div className="flex flex-col items-center justify-center flex-1 gap-4">
+                           <div className="relative w-32 h-32 flex items-center justify-center">
+                              <svg className="w-full h-full -rotate-90">
+                                <circle
+                                  cx="64"
+                                  cy="64"
+                                  r="56"
+                                  className="stroke-zinc-900"
+                                  strokeWidth="8"
+                                  fill="none"
+                                />
+                                <motion.circle
+                                  cx="64"
+                                  cy="64"
+                                  r="56"
+                                  className="stroke-yellow-500"
+                                  strokeWidth="8"
+                                  fill="none"
+                                  strokeDasharray="351.85"
+                                  initial={{ strokeDashoffset: 351.85 }}
+                                  animate={{ strokeDashoffset: 351.85 - (351.85 * historicalTrends.upset_frequency) / 100 }}
+                                  transition={{ duration: 2, ease: "easeOut" }}
+                                />
+                              </svg>
+                              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                 <span className="text-3xl font-black font-mono tracking-tighter text-white">{historicalTrends.upset_frequency}%</span>
+                                 <span className="text-[8px] font-black uppercase text-zinc-600">Upset Rate</span>
+                              </div>
+                           </div>
+                           <div className="flex items-center gap-2">
+                             <div className={cn("w-2 h-2 rounded-full", historicalTrends.upset_frequency > 30 ? 'bg-orange-500' : 'bg-emerald-500')} />
+                             <span className="text-[9px] font-black uppercase text-zinc-500">
+                               Volatility {historicalTrends.upset_frequency > 30 ? 'CRITICAL' : 'REPRESSED'}
+                             </span>
+                           </div>
+                        </div>
+                      </Card>
+
+                      <Card className="bg-zinc-950/50 border-zinc-900 rounded-[32px] p-8 flex flex-col justify-between group hover:border-zinc-800 transition-all">
+                         <div className="flex justify-between items-center text-[9px] font-black uppercase tracking-widest text-zinc-500">
+                            <span>League Production (xG)</span>
+                            <Activity className="w-3.5 h-3.5 opacity-30" />
+                         </div>
+                         <div className="space-y-6">
+                            <div className="flex items-center gap-4">
+                               <div className="w-12 h-12 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-300 font-black text-lg">
+                                 {historicalTrends.avg_xg_home}
+                               </div>
+                               <div className="flex flex-col">
+                                  <span className="text-[8px] font-black uppercase text-emerald-500 mb-0.5">Host xG Average</span>
+                                  <div className="h-1.5 w-32 bg-zinc-900 rounded-full overflow-hidden">
+                                     <motion.div 
+                                       initial={{ width: 0 }}
+                                       animate={{ width: `${(historicalTrends.avg_xg_home / 3) * 100}%` }}
+                                       className="h-full bg-emerald-500" 
+                                     />
+                                  </div>
+                               </div>
+                            </div>
+                            <div className="flex items-center gap-4">
+                               <div className="w-12 h-12 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-300 font-black text-lg">
+                                 {historicalTrends.avg_xg_away}
+                               </div>
+                               <div className="flex flex-col">
+                                  <span className="text-[8px] font-black uppercase text-blue-500 mb-0.5">Assailant xG Average</span>
+                                  <div className="h-1.5 w-32 bg-zinc-900 rounded-full overflow-hidden">
+                                     <motion.div 
+                                       initial={{ width: 0 }}
+                                       animate={{ width: `${(historicalTrends.avg_xg_away / 3) * 100}%` }}
+                                       className="h-full bg-blue-500" 
+                                     />
+                                  </div>
+                               </div>
+                            </div>
+                         </div>
+                         <div className="pt-6 border-t border-zinc-900 mt-4">
+                            <p className="text-[10px] text-zinc-500 leading-tight">
+                              Archival density: {historicalTrends.sample_size_years} seasons of calibrated tactical data points.
+                            </p>
+                         </div>
+                      </Card>
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-8">
+                   <div className="flex items-center justify-between px-4">
+                      <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">Historical Tactical Encounters</h4>
+                      <Badge variant="outline" className="text-[9px] border-zinc-800 text-zinc-600 font-black uppercase tracking-widest px-3 py-1">
+                        Displaying {h2hFilter === 'recent' ? '5' : (h2hData?.matches?.length || 0)} Logs
+                      </Badge>
+                   </div>
                    <div className="space-y-4">
-                      {h2hData?.matches?.map((m: any) => (
-                        <div key={m.id} className="group bg-zinc-950 border border-zinc-900 rounded-3xl p-6 hover:border-zinc-700 transition-all">
-                           <div className="flex items-center gap-6">
-                              <div className="shrink-0 w-24 flex flex-col items-center bg-zinc-900 border border-zinc-800 rounded-xl py-3">
-                                <span className="text-[11px] font-mono text-zinc-400">{new Date(m.utcDate).getFullYear()}</span>
-                                <span className="text-[9px] font-black text-zinc-600 uppercase tracking-widest">{new Date(m.utcDate).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
-                              </div>
-                              <div className="flex-1 grid grid-cols-3 items-center gap-4">
-                                <span className="text-right font-black uppercase tracking-tight truncate text-lg">{m.homeTeam.name}</span>
-                                <div className="flex items-center justify-center bg-zinc-950 border border-zinc-900 rounded-2xl px-6 py-3 font-mono text-2xl font-black group-hover:scale-105 transition-transform">
-                                  {m.score.fullTime.home} <span className="text-zinc-800 mx-3">–</span> {m.score.fullTime.away}
+                      {h2hData?.matches?.slice(0, h2hFilter === 'recent' ? 5 : undefined).map((m: any) => (
+                        <div key={m.id} className="group bg-zinc-950 border border-zinc-900 rounded-[32px] p-8 hover:border-zinc-700 transition-all duration-500 hover:shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+                           <div className="flex flex-col md:flex-row items-center gap-8">
+                              <div className="shrink-0 w-full md:w-32 flex flex-col items-center md:items-start bg-zinc-900/50 border border-zinc-800 rounded-2xl p-4">
+                                <span className="text-xl font-black font-mono text-white leading-none mb-1">{new Date(m.utcDate).getFullYear()}</span>
+                                <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">{new Date(m.utcDate).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
+                                <Separator className="my-3 bg-zinc-800/50 w-full" />
+                                <div className="flex items-center gap-2">
+                                  <Trophy className="w-3 h-3 text-yellow-500/50" />
+                                  <span className="text-[8px] font-black text-zinc-400 uppercase tracking-widest truncate">{m.competition?.name || 'League'}</span>
                                 </div>
-                                <span className="text-left font-black uppercase tracking-tight truncate text-lg">{m.awayTeam.name}</span>
                               </div>
-                              <Badge variant="outline" className="hidden lg:flex border-zinc-800 text-zinc-500 py-1 px-4">{m.competition?.name}</Badge>
+
+                              <div className="flex-1 w-full grid grid-cols-1 md:grid-cols-3 items-center gap-6">
+                                <div className="flex items-center justify-center md:justify-end gap-4 overflow-hidden">
+                                  <span className="text-xl font-black uppercase tracking-tighter truncate text-white">{m.homeTeam?.name || 'TBD'}</span>
+                                  <div className="w-10 h-10 bg-zinc-900 rounded-xl p-2 flex items-center justify-center shrink-0 border border-zinc-800">
+                                    <img src={m.homeTeam?.crest} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+                                  </div>
+                                </div>
+
+                                <div className="flex flex-col items-center gap-2">
+                                  <div className="bg-black border-2 border-zinc-900 rounded-[24px] px-8 py-4 flex items-center justify-center gap-4 group-hover:border-zinc-700 transition-colors shadow-2xl">
+                                    <span className={cn("text-4xl font-black font-mono tracking-tighter", m.score.fullTime.home > m.score.fullTime.away ? "text-white" : "text-zinc-600")}>
+                                      {m.score.fullTime.home}
+                                    </span>
+                                    <span className="text-zinc-800 font-black text-2xl">:</span>
+                                    <span className={cn("text-4xl font-black font-mono tracking-tighter", m.score.fullTime.away > m.score.fullTime.home ? "text-white" : "text-zinc-600")}>
+                                      {m.score.fullTime.away}
+                                    </span>
+                                  </div>
+                                  <span className="text-[8px] font-black text-zinc-600 uppercase tracking-[0.3em]">Full Time Final</span>
+                                </div>
+
+                                <div className="flex items-center justify-center md:justify-start gap-4 overflow-hidden">
+                                  <div className="w-10 h-10 bg-zinc-900 rounded-xl p-2 flex items-center justify-center shrink-0 border border-zinc-800">
+                                    <img src={m.awayTeam?.crest} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+                                  </div>
+                                  <span className="text-xl font-black uppercase tracking-tighter truncate text-white">{m.awayTeam?.name || 'TBD'}</span>
+                                </div>
+                              </div>
+
+                              <div className="hidden lg:flex flex-col items-end gap-2 px-4 border-l border-zinc-900">
+                                <span className="text-[9px] font-black text-zinc-600 uppercase tracking-widest">Venue Log</span>
+                                <span className={cn(
+                                  "text-[10px] font-black uppercase tracking-tight",
+                                  m.score.winner === 'HOME_TEAM' ? "text-emerald-500" : m.score.winner === 'AWAY_TEAM' ? "text-blue-500" : "text-zinc-400"
+                                )}>
+                                  {m.score.winner === 'HOME_TEAM' ? 'Host Victory' : m.score.winner === 'AWAY_TEAM' ? 'Assailant Victory' : 'Neutral Draw'}
+                                </span>
+                              </div>
                            </div>
                         </div>
                       ))}
+
+                      {(!h2hData?.matches || h2hData.matches.length === 0) && (
+                        <div className="p-32 text-center bg-zinc-950 border-2 border-dashed border-zinc-900 rounded-[56px] flex flex-col items-center gap-8">
+                          <History className="w-12 h-12 text-zinc-800" />
+                          <div className="max-w-xs">
+                            <h3 className="text-xl font-black uppercase tracking-tighter mb-2 text-zinc-400">Archival Void</h3>
+                            <p className="text-zinc-600 text-[10px] font-black uppercase leading-relaxed tracking-widest">No previous direct engagements recorded in the tactical database for these specific entities.</p>
+                          </div>
+                        </div>
+                      )}
                    </div>
                 </div>
              </div>
           </TabsContent>
 
           <TabsContent value="stats">
-             <Card className="bg-zinc-950 border-zinc-900 rounded-[40px] p-10">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-16 gap-y-10">
-                   <StatRow label="Possession %" home={parseInt(matchDetails.statistics?.possession?.home || '50')} away={parseInt(matchDetails.statistics?.possession?.away || '50')} unit="%" />
-                   <StatRow label="Total Shots" home={matchDetails.statistics?.shots?.home || 0} away={matchDetails.statistics?.shots?.away || 0} />
-                   <StatRow label="Shots on Target" home={matchDetails.statistics?.shotsOnTarget?.home || 0} away={matchDetails.statistics?.shotsOnTarget?.away || 0} />
-                   <StatRow label="Corner Kicks" home={matchDetails.statistics?.corners?.home || 0} away={matchDetails.statistics?.corners?.away || 0} />
-                   <StatRow label="Disciplinary Node (Fouls)" home={matchDetails.statistics?.fouls?.home || 0} away={matchDetails.statistics?.fouls?.away || 0} homeColor="bg-red-500/70" awayColor="bg-red-500/70" />
-                   <StatRow label="Yellow Cards" home={matchDetails.statistics?.yellowCards?.home || 0} away={matchDetails.statistics?.yellowCards?.away || 0} homeColor="bg-yellow-500" awayColor="bg-yellow-500" />
-                   <StatRow label="Offsides" home={matchDetails.statistics?.offsides?.home || 0} away={matchDetails.statistics?.offsides?.away || 0} />
-                   <StatRow label="Free Kicks" home={matchDetails.statistics?.freeKicks?.home || 0} away={matchDetails.statistics?.freeKicks?.away || 0} />
+             {matchDetails.statistics ? (
+               <div className="space-y-12">
+                  {/* Combat Performance Comparison */}
+                  <Card className="bg-zinc-950 border-zinc-900 rounded-[40px] p-10 relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 p-10 opacity-5 pointer-events-none group-hover:opacity-10 transition-opacity">
+                      <Activity className="w-40 h-40" />
+                    </div>
+                    
+                    <div className="relative z-10 space-y-12">
+                      <div className="flex flex-col gap-1">
+                        <h4 className="text-2xl font-black uppercase tracking-tighter text-white">Tactical KPI Comparison</h4>
+                        <p className="text-[10px] text-zinc-500 font-medium tracking-[0.2em] uppercase">Real-time Performance Synchronization</p>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-20 gap-y-12">
+                        <StatRow 
+                          label="Possession" 
+                          home={matchDetails.statistics.possession?.home || 0} 
+                          away={matchDetails.statistics.possession?.away || 0} 
+                          unit="%" 
+                        />
+                        <StatRow 
+                          label="Tactical Shots" 
+                          home={matchDetails.statistics.shots?.home || 0} 
+                          away={matchDetails.statistics.shots?.away || 0} 
+                        />
+                        <StatRow 
+                          label="Target Acquisition" 
+                          home={matchDetails.statistics.shotsOnTarget?.home || 0} 
+                          away={matchDetails.statistics.shotsOnTarget?.away || 0} 
+                        />
+                        <StatRow 
+                          label="Tactical Corners" 
+                          home={matchDetails.statistics.corners?.home || 0} 
+                          away={matchDetails.statistics.corners?.away || 0} 
+                        />
+                        <StatRow 
+                          label="Neutralised (Saves)" 
+                          home={matchDetails.statistics.saves?.home || 0} 
+                          away={matchDetails.statistics.saves?.away || 0} 
+                        />
+                        <StatRow 
+                          label="Enforcement (Fouls)" 
+                          home={matchDetails.statistics.fouls?.home || 0} 
+                          away={matchDetails.statistics.fouls?.away || 0} 
+                          homeColor="bg-zinc-700"
+                          awayColor="bg-zinc-800"
+                        />
+                      </div>
+                    </div>
+                  </Card>
+
+                  {/* Team-Categorized Detailed Distribution */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                     <TeamStatsColumn 
+                        team={matchDetails.homeTeam || { name: 'Home' }} 
+                        stats={matchDetails.statistics} 
+                        side="home" 
+                     />
+                     <TeamStatsColumn 
+                        team={matchDetails.awayTeam || { name: 'Away' }} 
+                        stats={matchDetails.statistics} 
+                        side="away" 
+                     />
+                  </div>
+               </div>
+             ) : (
+                <div className="p-32 text-center bg-zinc-950 border-2 border-dashed border-zinc-900 rounded-[56px] flex flex-col items-center gap-8 group">
+                   <div className="w-24 h-24 bg-zinc-900 rounded-[32px] flex items-center justify-center border border-zinc-800 group-hover:scale-110 transition-transform">
+                      <BarChart3 className="w-12 h-12 text-zinc-600" />
+                   </div>
+                   <div className="max-w-md">
+                      <h3 className="text-3xl font-black uppercase tracking-tighter mb-4">Metric Stream Offline</h3>
+                      <p className="text-zinc-500 text-sm font-medium leading-relaxed">External data relay has not provided granular statistics for this tactical node. Real-time synchronisation is pending match progression.</p>
+                   </div>
                 </div>
-             </Card>
+             )}
           </TabsContent>
 
-          <TabsContent value="ai-report">
-             <div className="space-y-8">
-               {!analysis && !isGenerating && (
-                 <div className="bg-zinc-950 border border-zinc-900 rounded-[40px] p-20 flex flex-col items-center gap-8 text-center">
-                    <div className="w-24 h-24 bg-yellow-500/10 rounded-[32px] flex items-center justify-center border border-yellow-500/20">
-                      <BrainCircuit className="w-12 h-12 text-yellow-500" />
+           <TabsContent value="ai-report">
+              <div className="space-y-8">
+                {!analysis && !isGenerating && (
+                  <div className="bg-zinc-950 border border-zinc-900 rounded-[40px] p-20 flex flex-col items-center gap-8 text-center">
+                     <div className="w-24 h-24 bg-yellow-500/10 rounded-[32px] flex items-center justify-center border border-yellow-500/20">
+                       <BrainCircuit className="w-12 h-12 text-yellow-500" />
+                     </div>
+                     <div className="max-w-md">
+                        <h3 className="text-3xl font-black tracking-tighter uppercase mb-4">Strategic Briefing Required</h3>
+                        <p className="text-zinc-500 text-sm leading-relaxed">System awaiting prompt to engage SafeSide Intelligence engine for comprehensive tactical resolution.</p>
+                     </div>
+                     <Button onClick={handleRunAnalysis} className="bg-yellow-500 hover:bg-yellow-400 text-black font-black uppercase h-16 px-12 rounded-2xl shadow-2xl">
+                        <Zap className="w-5 h-5 mr-3" />
+                        Generate Full Intelligence Report
+                     </Button>
+                  </div>
+                )}
+ 
+                {isGenerating && !analysis && (
+                  <div className="space-y-8">
+                    <div className="flex items-center gap-4 bg-yellow-500/5 border border-yellow-500/10 rounded-2xl p-6">
+                       <Loader2 className="w-5 h-5 text-yellow-500 animate-spin" />
+                       <span className="text-[11px] font-black uppercase tracking-[0.2em] text-yellow-500">Processing Neural Tactical Nodes...</span>
                     </div>
-                    <div className="max-w-md">
-                       <h3 className="text-3xl font-black tracking-tighter uppercase mb-4">Strategic Briefing Required</h3>
-                       <p className="text-zinc-500 text-sm leading-relaxed">System awaiting prompt to engage SafeSide Intelligence engine for comprehensive tactical resolution.</p>
-                    </div>
-                    <Button onClick={handleRunAnalysis} className="bg-yellow-500 hover:bg-yellow-400 text-black font-black uppercase h-16 px-12 rounded-2xl shadow-2xl">
-                       <Zap className="w-5 h-5 mr-3" />
-                       Generate Full Intelligence Report
-                    </Button>
-                 </div>
-               )}
+                    <AnalysisSkeleton />
+                  </div>
+                )}
+ 
+                {(analysis || streamedText) && (
+                  <div className="space-y-8">
+                    {isGenerating && (
+                      <div className="flex items-center gap-4 bg-yellow-500/5 border border-yellow-500/10 rounded-2xl p-6">
+                         <Loader2 className="w-5 h-5 text-yellow-500 animate-spin" />
+                         <span className="text-[11px] font-black uppercase tracking-[0.2em] text-yellow-500">Processing Neural Tactical Nodes...</span>
+                      </div>
+                    )}
 
-               {(isGenerating || streamedText) && (
-                 <div className="space-y-8">
-                   {isGenerating && (
-                     <div className="flex items-center gap-4 bg-yellow-500/5 border border-yellow-500/10 rounded-2xl p-6">
-                        <Loader2 className="w-5 h-5 text-yellow-500 animate-spin" />
-                        <span className="text-[11px] font-black uppercase tracking-[0.2em] text-yellow-500">Processing Neural Tactical Nodes...</span>
+                   {analysis && (
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <AIDiagnosticGauge 
+                          label="Confidence Level" 
+                          value={analysis.prediction.confidence_score} 
+                          type="confidence" 
+                        />
+                        <AIDiagnosticGauge 
+                          label="Risk Profile" 
+                          value={analysis.risk_assessment.level} 
+                          type="risk" 
+                        />
                      </div>
                    )}
+
+                    {analysis?.tactical_insights && (
+                      <Card className="bg-zinc-950 border-zinc-900 rounded-[40px] overflow-hidden">
+                         <button 
+                           onClick={() => setIsInsightsExpanded(!isInsightsExpanded)}
+                           className="w-full h-16 px-8 flex justify-between items-center hover:bg-zinc-900/50 transition-colors border-b border-zinc-900"
+                         >
+                           <div className="flex items-center gap-3">
+                             <Brain className="w-4 h-4 text-yellow-500" />
+                             <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">Key Tactical Insights</span>
+                           </div>
+                           <div className="flex items-center gap-4">
+                              <span className="text-[8px] font-black uppercase tracking-widest text-zinc-600">
+                                {isInsightsExpanded ? 'Collapse' : 'Expand'}
+                              </span>
+                              <motion.div
+                               animate={{ rotate: isInsightsExpanded ? 180 : 0 }}
+                               transition={{ duration: 0.3 }}
+                              >
+                               <ChevronDown className="w-4 h-4 text-zinc-500" />
+                              </motion.div>
+                           </div>
+                         </button>
+                         <AnimatePresence>
+                           {isInsightsExpanded && (
+                             <motion.div
+                               initial={{ height: 0, opacity: 0 }}
+                               animate={{ height: 'auto', opacity: 1 }}
+                               exit={{ height: 0, opacity: 0 }}
+                               transition={{ duration: 0.4, ease: "circOut" }}
+                             >
+                               <div className="p-8 md:p-12">
+                                 <TacticalInsightList insights={analysis.tactical_insights} />
+                               </div>
+                             </motion.div>
+                           )}
+                         </AnimatePresence>
+                      </Card>
+                    )}
+
+                    {historicalTrends && (
+                     <Card className="bg-zinc-950 border-zinc-900 rounded-[40px] overflow-hidden">
+                        <button 
+                          onClick={() => setIsTrendsExpanded(!isTrendsExpanded)}
+                          className="w-full h-16 px-8 flex justify-between items-center hover:bg-zinc-900/50 transition-colors border-b border-zinc-900"
+                        >
+                          <div className="flex items-center gap-3">
+                            <History className="w-4 h-4 text-blue-500" />
+                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">Archival Competition Trends (50-Year Baseline)</span>
+                          </div>
+                          <div className="flex items-center gap-4">
+                             <span className="text-[8px] font-black uppercase tracking-widest text-zinc-600">
+                               {isTrendsExpanded ? 'Collapse' : 'Expand'}
+                             </span>
+                             <motion.div
+                              animate={{ rotate: isTrendsExpanded ? 180 : 0 }}
+                              transition={{ duration: 0.3 }}
+                             >
+                              <ChevronDown className="w-4 h-4 text-zinc-500" />
+                             </motion.div>
+                          </div>
+                        </button>
+                        <AnimatePresence>
+                          {isTrendsExpanded && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.4, ease: "circOut" }}
+                            >
+                              <div className="p-8 md:p-12">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                  <TrendMetric 
+                                    label="Home Win Weight" 
+                                    value={`${historicalTrends.win_rate_home}%`} 
+                                    icon={Trophy} 
+                                    subValue="50y League Average"
+                                  />
+                                  <TrendMetric 
+                                    label="Away Win Weight" 
+                                    value={`${historicalTrends.win_rate_away}%`} 
+                                    icon={ExternalLink} 
+                                    subValue="Assailant Probability"
+                                  />
+                                  <TrendMetric 
+                                    label="Upset Frequency" 
+                                    value={`${historicalTrends.upset_frequency}%`} 
+                                    icon={Zap} 
+                                    subValue="Tactical Anomaly Rate"
+                                  />
+                                  <TrendMetric 
+                                    label="Sample Density" 
+                                    value={`${historicalTrends.sample_size_years} Years`} 
+                                    icon={BarChart3} 
+                                    subValue="Archival Depth"
+                                  />
+                                </div>
+                                
+                                <div className="mt-8 p-6 bg-zinc-900/30 border border-zinc-800/50 rounded-[28px]">
+                                   <div className="flex items-center gap-3 mb-4">
+                                      <Info className="w-4 h-4 text-zinc-500" />
+                                      <span className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-500">Retrieval Augmented Generation Context</span>
+                                   </div>
+                                   <p className="text-xs text-zinc-400 leading-relaxed font-medium">
+                                      These baseline metrics provide the long-term statistical "anchor" for the SafeSide Predictive Engine. While modern form weights 50% of the prediction, these 50-year trends ensure the AI remains grounded in the competition's historical DNA.
+                                   </p>
+                                </div>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                     </Card>
+                   )}
                    
-                   <Card className="bg-zinc-950 border-zinc-900 rounded-[40px] p-8 md:p-12">
-                      <div className="prose prose-invert prose-emerald max-w-none">
-                        <ReactMarkdown>{streamedText || (analysis ? analysis.reasoning_summary : '')}</ReactMarkdown>
-                        {isGenerating && <span className="inline-block w-2 h-5 bg-yellow-500 animate-pulse ml-2" />}
-                      </div>
+                   <Card className="bg-zinc-950 border-zinc-900 rounded-[40px] overflow-hidden">
+                      <button 
+                        onClick={() => setIsReportReasoningExpanded(!isReportReasoningExpanded)}
+                        className="w-full h-16 px-8 flex justify-between items-center hover:bg-zinc-900/50 transition-colors border-b border-zinc-900"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Terminal className="w-4 h-4 text-emerald-500" />
+                          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">AI Reasoning Summary</span>
+                        </div>
+                        <div className="flex items-center gap-4">
+                           <span className="text-[8px] font-black uppercase tracking-widest text-zinc-600">
+                             {isReportReasoningExpanded ? 'Collapse' : 'Expand'}
+                           </span>
+                           <motion.div
+                            animate={{ rotate: isReportReasoningExpanded ? 180 : 0 }}
+                            transition={{ duration: 0.3 }}
+                           >
+                            <ChevronDown className="w-4 h-4 text-zinc-500" />
+                           </motion.div>
+                        </div>
+                      </button>
+
+                      <AnimatePresence>
+                        {isReportReasoningExpanded && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.4, ease: "circOut" }}
+                          >
+                            <div className="p-8 md:p-12">
+                              <div className="prose prose-invert prose-emerald max-w-none">
+                                <ReactMarkdown>{streamedText || (analysis ? analysis.reasoning_summary : '')}</ReactMarkdown>
+                                {isGenerating && <span className="inline-block w-2 h-5 bg-yellow-500 animate-pulse ml-2" />}
+                              </div>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                    </Card>
 
                    {analysis && (
@@ -659,19 +1318,27 @@ export default function MatchDetailPage() {
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
                      <TeamLineup 
                         side="home" 
-                        team={matchDetails.homeTeam} 
+                        team={matchDetails.homeTeam || { name: 'Home' }} 
                         data={lineups?.homeTeam || { 
-                          formation: analysis?.predicted_lineups?.home.formation, 
-                          startXI: analysis?.predicted_lineups?.home.starting_xi.map((p, i) => ({ ...p, shirtNumber: '?', id: i })) 
+                          formation: analysis?.predicted_lineups?.home?.formation, 
+                          startXI: analysis?.predicted_lineups?.home?.starting_xi?.map((p, i) => ({ 
+                            ...p, 
+                            shirtNumber: p.shirt_number || '?', 
+                            id: `p-home-${i}` 
+                          })) || []
                         }} 
                         isPredicted={!lineups}
                      />
                      <TeamLineup 
                         side="away" 
-                        team={matchDetails.awayTeam} 
+                        team={matchDetails.awayTeam || { name: 'Away' }} 
                         data={lineups?.awayTeam || { 
-                          formation: analysis?.predicted_lineups?.away.formation, 
-                          startXI: analysis?.predicted_lineups?.away.starting_xi.map((p, i) => ({ ...p, shirtNumber: '?', id: i })) 
+                          formation: analysis?.predicted_lineups?.away?.formation, 
+                          startXI: analysis?.predicted_lineups?.away?.starting_xi?.map((p, i) => ({ 
+                            ...p, 
+                            shirtNumber: p.shirt_number || '?', 
+                            id: `p-away-${i}` 
+                          })) || []
                         }} 
                         isPredicted={!lineups}
                      />
@@ -743,6 +1410,122 @@ export default function MatchDetailPage() {
 }
 
 // Subcomponents
+
+const TacticalInsightList = ({ insights }: { insights: string[] }) => {
+  return (
+    <div className="space-y-4">
+      {insights.map((insight, idx) => {
+        // Simple visual cue extraction: look for percentages, numbers, or specific tactical terms
+        const hasNumber = /\d+/.test(insight);
+        const hasPercent = /%/.test(insight);
+        const isCritical = hasPercent || (hasNumber && insight.length < 100);
+
+        return (
+          <motion.div 
+            key={idx}
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: idx * 0.1 }}
+            className="flex items-start gap-4 bg-zinc-900/30 border border-zinc-800/50 rounded-2xl p-5 hover:border-emerald-500/30 transition-all group"
+          >
+            <div className={cn(
+              "w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border",
+              isCritical ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500" : "bg-zinc-800 border-zinc-700 text-zinc-500"
+            )}>
+              <Activity className="w-4 h-4" />
+            </div>
+            <div className="space-y-1">
+              <p className="text-[13px] font-medium text-zinc-300 leading-relaxed group-hover:text-white transition-colors">
+                {insight}
+              </p>
+              {isCritical && (
+                <div className="flex items-center gap-2">
+                   <div className="w-1 h-3 bg-emerald-500 rounded-full" />
+                   <span className="text-[8px] font-black uppercase tracking-widest text-emerald-500/70">Critical Node Identified</span>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        );
+      })}
+    </div>
+  );
+};
+
+const TrendMetric = ({ label, value, icon: Icon, subValue }: any) => (
+  <div className="bg-zinc-950 border border-zinc-900 rounded-[28px] p-6 hover:border-zinc-800 transition-all group">
+     <div className="flex items-center gap-2 text-zinc-500 mb-4">
+        <Icon className="w-3.5 h-3.5" />
+        <span className="text-[9px] font-black uppercase tracking-widest">{label}</span>
+     </div>
+     <div className="text-3xl font-black font-mono tracking-tighter mb-1 text-white group-hover:text-emerald-500 transition-colors">{value}</div>
+     <div className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">{subValue}</div>
+  </div>
+);
+
+const AIDiagnosticGauge = ({ label, value, type }: { label: string, value: any, type: 'confidence' | 'risk' }) => {
+  const isRisk = type === 'risk';
+  const numericValue = isRisk ? (value === 'High' ? 85 : value === 'Medium' ? 50 : 20) : value;
+  
+  const getColors = () => {
+    if (isRisk) {
+      if (value === 'High') return { text: 'text-red-500', bg: 'bg-red-500/10', border: 'border-red-500/20' };
+      if (value === 'Medium') return { text: 'text-yellow-500', bg: 'bg-yellow-500/10', border: 'border-yellow-500/20' };
+      return { text: 'text-emerald-500', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' };
+    }
+    if (value >= 80) return { text: 'text-emerald-500', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' };
+    if (value >= 60) return { text: 'text-yellow-500', bg: 'bg-yellow-500/10', border: 'border-yellow-500/20' };
+    return { text: 'text-red-500', bg: 'bg-red-500/10', border: 'border-red-500/20' };
+  };
+
+  const colors = getColors();
+
+  return (
+    <Card className="bg-zinc-950 border-zinc-900 rounded-[32px] p-6 group hover:border-zinc-800 transition-all">
+      <div className="flex items-center justify-between mb-4">
+        <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">{label}</span>
+        <Badge variant="outline" className={cn("text-[8px] uppercase font-black", colors.border, colors.text)}>
+          AI AUDIT: VERIFIED
+        </Badge>
+      </div>
+      <div className="flex items-center gap-6">
+        <div className="relative w-16 h-16 flex items-center justify-center">
+            <svg className="w-full h-full -rotate-90">
+              <circle
+                cx="32"
+                cy="32"
+                r="28"
+                className="stroke-zinc-900"
+                strokeWidth="4"
+                fill="none"
+              />
+              <motion.circle
+                cx="32"
+                cy="32"
+                r="28"
+                className={cn("stroke-current", colors.text)}
+                strokeWidth="4"
+                fill="none"
+                strokeDasharray="175.92"
+                initial={{ strokeDashoffset: 175.92 }}
+                animate={{ strokeDashoffset: 175.92 - (175.92 * numericValue) / 100 }}
+                transition={{ duration: 1.5, ease: "easeOut" }}
+              />
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center">
+               <div className={cn("w-1 h-1 rounded-full", colors.text, "animate-pulse")} />
+            </div>
+        </div>
+        <div>
+           <div className={cn("text-3xl font-black font-mono tracking-tighter mb-0.5", colors.text)}>
+             {isRisk ? value : `${value}%`}
+           </div>
+           <p className="text-[9px] font-black uppercase text-zinc-600 tracking-[0.2em]">Diagnostic Probability</p>
+        </div>
+      </div>
+    </Card>
+  );
+};
 
 const StatusBadge = ({ status }: { status: string }) => {
   const isLive = ['IN_PLAY', 'PAUSED', 'LIVE'].includes(status);
@@ -892,16 +1675,94 @@ const H2HWinBar = ({ home, draw, away, total }: any) => (
        </div>
     </div>
     <div className="h-8 flex rounded-2xl overflow-hidden bg-zinc-950">
-      <div style={{ width: `${(home/total)*100}%` }} className="h-full bg-emerald-500 flex items-center justify-end pr-3">
-        <span className="text-[10px] font-black text-black">{(home/total*100).toFixed(0)}%</span>
+      <div style={{ width: `${(home/(total||1))*100}%` }} className="h-full bg-emerald-500 flex items-center justify-end pr-3">
+        <span className="text-[10px] font-black text-black">{(home/(total||1)*100).toFixed(0)}%</span>
       </div>
-      <div style={{ width: `${(draw/total)*100}%` }} className="h-full bg-zinc-800 flex items-center justify-center">
-        <span className="text-[10px] font-black text-zinc-400">{(draw/total*100).toFixed(0)}%</span>
+      <div style={{ width: `${(draw/(total||1))*100}%` }} className="h-full bg-zinc-800 flex items-center justify-center">
+        <span className="text-[10px] font-black text-zinc-400">{(draw/(total||1)*100).toFixed(0)}%</span>
       </div>
-      <div style={{ width: `${(away/total)*100}%` }} className="h-full bg-blue-500 flex items-center justify-start pl-3">
-        <span className="text-[10px] font-black text-black">{(away/total*100).toFixed(0)}%</span>
+      <div style={{ width: `${(away/(total||1))*100}%` }} className="h-full bg-blue-500 flex items-center justify-start pl-3">
+        <span className="text-[10px] font-black text-black">{(away/(total||1)*100).toFixed(0)}%</span>
       </div>
     </div>
+  </div>
+);
+
+const TeamStatsColumn = ({ team, stats, side }: any) => {
+  const isHome = side === 'home';
+  const getStat = (path: string) => {
+    const parts = path.split('.');
+    let cur = stats;
+    for (const p of parts) {
+      if (!cur) return 0;
+      cur = cur[p];
+    }
+    return cur?.[side] || 0;
+  };
+
+  return (
+    <div className="space-y-12">
+       <div className="flex items-center gap-5 border-b border-zinc-900 pb-8">
+          <div className="w-16 h-16 bg-zinc-900 rounded-[20px] flex items-center justify-center p-3 border border-zinc-800">
+             <img src={team.crest} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+          </div>
+          <div className="flex flex-col">
+             <span className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.2em] mb-1">{isHome ? 'Host' : 'Assailant'} Profile</span>
+             <h3 className="text-3xl font-black uppercase tracking-tighter leading-none">{team.name}</h3>
+          </div>
+       </div>
+
+       <div className="grid grid-cols-1 gap-8">
+          <CategorySection title="Offensive Intelligence" icon={Target}>
+             <DetailedStatLine label="Total Shots" value={getStat('shots')} />
+             <DetailedStatLine label="Shots on Target" value={getStat('shotsOnTarget')} />
+             <DetailedStatLine label="Corners" value={getStat('corners')} />
+             <DetailedStatLine label="xG (Expected Goals)" value={getStat('expectedGoals') || '0.00'} color="text-emerald-500" />
+          </CategorySection>
+
+          <CategorySection title="Defensive Integrity" icon={Shield}>
+             <DetailedStatLine label="Tackles" value={getStat('tackles')} />
+             <DetailedStatLine label="Interceptions" value={getStat('interceptions')} />
+             <DetailedStatLine label="Clearances" value={getStat('clearances')} />
+             <DetailedStatLine label="Saves" value={getStat('saves')} />
+          </CategorySection>
+
+          <CategorySection title="Distribution & Flow" icon={RefreshCw}>
+             <DetailedStatLine label="Possession" value={`${getStat('possession')}%`} />
+             <DetailedStatLine label="Total Passes" value={getStat('passes')} />
+             <DetailedStatLine label="Pass Accuracy" value={`${getStat('passAccuracy')}%`} />
+             <DetailedStatLine label="Key Passes" value={getStat('keyPasses')} />
+          </CategorySection>
+
+          <CategorySection title="Discipline & Friction" icon={AlertTriangle}>
+             <DetailedStatLine label="Fouls Committed" value={getStat('fouls')} />
+             <DetailedStatLine label="Yellow Cards" value={getStat('yellowCards')} color="text-yellow-500" />
+             <DetailedStatLine label="Red Cards" value={getStat('redCards')} color="text-red-500" />
+             <DetailedStatLine label="Offsides" value={getStat('offsides')} />
+          </CategorySection>
+       </div>
+    </div>
+  );
+};
+
+const CategorySection = ({ title, icon: Icon, children }: any) => (
+  <div className="bg-zinc-950 border border-zinc-900 rounded-[40px] overflow-hidden group hover:border-zinc-800 transition-all">
+     <div className="px-8 py-5 border-b border-zinc-900 bg-zinc-950 flex items-center gap-4">
+        <div className="w-8 h-8 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center">
+           <Icon className="w-4 h-4 text-zinc-500" />
+        </div>
+        <h4 className="text-[11px] font-black uppercase tracking-[0.2em] text-zinc-500">{title}</h4>
+     </div>
+     <div className="p-8 space-y-6">
+        {children}
+     </div>
+  </div>
+);
+
+const DetailedStatLine = ({ label, value, color = 'text-white' }: any) => (
+  <div className="flex justify-between items-center group/stat">
+     <span className="text-[11px] font-black uppercase text-zinc-600 tracking-widest px-1 group-hover/stat:text-white transition-colors">{label}</span>
+     <span className={cn("text-xl font-black font-mono tracking-tighter", color)}>{value}</span>
   </div>
 );
 
@@ -956,39 +1817,82 @@ const MatchTimeline = ({ goals, homeTeam }: any) => (
   </div>
 );
 
-const FormPanel = ({ side, teamName }: any) => (
-  <Card className="bg-zinc-950 border-zinc-900 rounded-[40px] p-8 space-y-8">
-     <div className="flex items-center gap-4">
-        <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg", side === 'home' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-blue-500/10 text-blue-500')}>
-           {side === 'home' ? 'H' : 'A'}
-        </div>
-        <div className="flex flex-col">
-           <span className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">Tactical Trajectory</span>
-           <h4 className="text-xl font-black uppercase tracking-tighter">{teamName}</h4>
-        </div>
-     </div>
-     
-     <div className="flex gap-3 h-14 bg-zinc-900/40 border border-zinc-900 p-2 rounded-2xl">
-        {['W', 'W', 'D', 'L', 'W'].map((res, i) => (
-          <div key={i} className={cn(
-            "flex-1 flex items-center justify-center rounded-xl font-black text-sm border-2",
-            res === 'W' ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400' :
-            res === 'D' ? 'bg-zinc-800 border-zinc-700 text-zinc-500' :
-            'bg-red-500/10 border-red-500 text-red-400'
-          )}>
-            {res}
-          </div>
-        ))}
-     </div>
+const FormPanel = ({ side, teamName, teamId, recentMatches }: any) => {
+  const getResult = (match: any) => {
+    if (!match.score || !match.score.winner) return 'D';
+    if (match.score.winner === 'DRAW') return 'D';
+    
+    const isHome = match.homeTeam.id === teamId;
+    if (isHome) {
+      return match.score.winner === 'HOME_TEAM' ? 'W' : 'L';
+    } else {
+      return match.score.winner === 'AWAY_TEAM' ? 'W' : 'L';
+    }
+  };
 
-     <div className="space-y-4">
-        <StatLine label="Goals / 5 Game Avg" value={side === 'home' ? '2.4' : '1.8'} />
-        <StatLine label="Expected Conversion" value="78%" />
-        <StatLine label="Clean Sheet Probability" value="32%" />
-        <StatLine label="Offensive Efficiency" value="HIGH" color="text-emerald-500" />
-     </div>
-  </Card>
-);
+  const results = recentMatches?.map(getResult).reverse() || [];
+  
+  // Calculate average goals and clean sheets
+  const avgGoals = recentMatches?.length ? (
+    recentMatches.reduce((sum: number, match: any) => {
+      const goals = match.homeTeam.id === teamId ? (match.score?.fullTime?.home || 0) : (match.score?.fullTime?.away || 0);
+      return sum + goals;
+    }, 0) / recentMatches.length
+  ).toFixed(1) : '0.0';
+
+  const cleanSheets = recentMatches?.length ? (
+    recentMatches.filter((match: any) => {
+      const conceded = match.homeTeam.id === teamId ? (match.score?.fullTime?.away || 0) : (match.score?.fullTime?.home || 0);
+      return conceded === 0;
+    }).length
+  ) : 0;
+
+  const cleanSheetProb = recentMatches?.length ? Math.round((cleanSheets / recentMatches.length) * 100) : 0;
+
+  return (
+    <Card className="bg-zinc-950 border-zinc-900 rounded-[40px] p-8 space-y-8">
+       <div className="flex items-center gap-4">
+          <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg", side === 'home' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-blue-500/10 text-blue-500')}>
+             {side === 'home' ? 'H' : 'A'}
+          </div>
+          <div className="flex flex-col">
+             <span className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">Tactical Trajectory</span>
+             <h4 className="text-xl font-black uppercase tracking-tighter">{teamName}</h4>
+          </div>
+       </div>
+       
+       <div className="flex gap-3 h-14 bg-zinc-900/40 border border-zinc-900 p-2 rounded-2xl">
+          {recentMatches ? (
+            results.map((res: string, i: number) => (
+              <div key={i} className={cn(
+                "flex-1 flex items-center justify-center rounded-xl font-black text-sm border-2",
+                res === 'W' ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400' :
+                res === 'D' ? 'bg-zinc-800 border-zinc-700 text-zinc-500' :
+                'bg-red-500/10 border-red-500 text-red-400'
+              )}>
+                {res}
+              </div>
+            ))
+          ) : (
+            Array(5).fill(0).map((_, i) => (
+              <div key={i} className="flex-1 bg-zinc-900 animate-pulse rounded-xl" />
+            ))
+          )}
+       </div>
+
+       <div className="space-y-4">
+          <StatLine label="Goals / 5 Game Avg" value={avgGoals} />
+          <StatLine label="Tactical Clean Sheets" value={cleanSheets} />
+          <StatLine label="Defensive Density Index" value={`${cleanSheetProb}%`} />
+          <StatLine 
+            label="Neural Assessment" 
+            value={parseFloat(avgGoals) > 2 ? "HIGH OUTPUT" : parseFloat(avgGoals) > 1.2 ? "STABLE" : "LOW CALIBER"} 
+            color={parseFloat(avgGoals) > 1.5 ? "text-emerald-500" : "text-yellow-500"} 
+          />
+       </div>
+    </Card>
+  );
+};
 
 const StatLine = ({ label, value, color = 'text-white' }: any) => (
   <div className="flex justify-between items-center py-4 border-b border-zinc-900/50 last:border-0">
@@ -1109,7 +2013,7 @@ const OddsCard = ({ bookie, homeProb }: any) => {
 const OddsCell = ({ label, value, color = 'text-zinc-200' }: any) => (
   <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-center">
      <p className="text-[9px] font-black text-zinc-700 uppercase mb-2">{label}</p>
-     <p className={cn("text-xl font-black font-mono tracking-tighter", color)}>{value.toFixed(2)}</p>
+     <p className={cn("text-xl font-black font-mono tracking-tighter", color)}>{(value ?? 0).toFixed(2)}</p>
   </div>
 );
 
@@ -1144,6 +2048,80 @@ const ChartLegend = ({ label, color }: any) => (
   <div className="flex items-center gap-2">
      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
      <span className="text-[9px] font-black uppercase text-zinc-500 tracking-widest">{label}</span>
+  </div>
+);
+
+const AnalysisSkeleton = () => (
+  <div className="space-y-8 w-full animate-pulse">
+    {/* Gauges Skeleton */}
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {[1, 2].map(i => (
+        <Card key={i} className="bg-zinc-950 border-zinc-900 rounded-[32px] p-6">
+          <div className="flex items-center justify-between mb-4">
+            <Skeleton className="h-3 w-24 bg-zinc-900" />
+            <Skeleton className="h-4 w-20 bg-zinc-900 rounded-full" />
+          </div>
+          <div className="flex items-center gap-6">
+            <div className="w-16 h-16 rounded-full bg-zinc-900" />
+            <div className="space-y-2 flex-1">
+              <Skeleton className="h-8 w-16 bg-zinc-900" />
+              <Skeleton className="h-2 w-24 bg-zinc-900" />
+            </div>
+          </div>
+        </Card>
+      ))}
+    </div>
+
+    {/* Insights Skeleton */}
+    <Card className="bg-zinc-950 border-zinc-900 rounded-[40px] overflow-hidden">
+      <div className="h-16 px-8 flex items-center border-b border-zinc-900">
+        <Skeleton className="h-4 w-48 bg-zinc-900" />
+      </div>
+      <div className="p-8 md:p-12 space-y-4">
+        {[1, 2, 3].map(i => (
+          <div key={i} className="flex gap-4 p-5 bg-zinc-900/40 rounded-2xl border border-zinc-900/50">
+            <Skeleton className="w-8 h-8 rounded-xl bg-zinc-800" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-3 w-full bg-zinc-800" />
+              <Skeleton className="h-3 w-2/3 bg-zinc-800" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
+
+    {/* Reasoning Skeleton */}
+    <Card className="bg-zinc-950 border-zinc-900 rounded-[40px] overflow-hidden">
+      <div className="h-16 px-8 flex items-center border-b border-zinc-900">
+        <Skeleton className="h-4 w-40 bg-zinc-900" />
+      </div>
+      <div className="p-8 md:p-12 space-y-4">
+        <Skeleton className="h-4 w-full bg-zinc-900" />
+        <Skeleton className="h-4 w-[90%] bg-zinc-900" />
+        <Skeleton className="h-4 w-[95%] bg-zinc-900" />
+        <Skeleton className="h-4 w-[85%] bg-zinc-900" />
+        <Skeleton className="h-4 w-2/3 bg-zinc-900" />
+      </div>
+    </Card>
+
+    {/* Recommendation Skeleton */}
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+      <Card className="bg-zinc-950 border-zinc-900 rounded-[32px] p-8 h-64 flex flex-col justify-between">
+        <div className="space-y-4">
+          <Skeleton className="h-3 w-32 bg-zinc-900" />
+          <Skeleton className="h-12 w-48 bg-zinc-900" />
+          <Skeleton className="h-3 w-full bg-zinc-900" />
+        </div>
+        <div className="flex justify-between">
+          <Skeleton className="h-8 w-24 bg-zinc-900" />
+          <Skeleton className="h-8 w-16 bg-zinc-900" />
+        </div>
+      </Card>
+      <div className="space-y-4">
+        <Skeleton className="h-24 bg-zinc-900 rounded-2xl" />
+        <Skeleton className="h-24 bg-zinc-900 rounded-2xl" />
+      </div>
+    </div>
   </div>
 );
 

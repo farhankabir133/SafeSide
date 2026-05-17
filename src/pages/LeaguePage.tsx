@@ -356,7 +356,7 @@ Keep it professional, data-centric, and use the 'Safe Side' intelligence tone.`;
                       </div>
                       <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800/50 flex flex-col items-center justify-center">
                         <p className="text-[9px] font-black uppercase text-zinc-600 tracking-widest mb-1">Impact</p>
-                        <span className="text-2xl font-black font-mono text-white">{(s.goals * 0.85).toFixed(1)}</span>
+                        <span className="text-2xl font-black font-mono text-white">{(s.goals ? (s.goals * 0.85) : 0).toFixed(1)}</span>
                       </div>
                     </div>
                   </Card>

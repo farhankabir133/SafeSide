@@ -20,6 +20,7 @@ export interface MatchAnalysis {
     scoreline: string;
     win_probability: { home: number; away: number; draw: number };
     confidence_score: number;
+    volatility_index: number; // 0-100: AI confidence vs market volatility
     expected_goals?: { home: number; away: number };
     btts_probability?: number;
     over_2_5_probability?: number;
@@ -40,16 +41,17 @@ export interface MatchAnalysis {
   predicted_lineups?: {
     home: {
       formation: string;
-      starting_xi: Array<{ name: string; position: string; is_key_player?: boolean }>;
+      starting_xi: Array<{ name: string; position: string; shirt_number?: string; is_key_player?: boolean }>;
     };
     away: {
       formation: string;
-      starting_xi: Array<{ name: string; position: string; is_key_player?: boolean }>;
+      starting_xi: Array<{ name: string; position: string; shirt_number?: string; is_key_player?: boolean }>;
     };
   };
   odds_data?: OddEntry[];
   micro_events: MicroEvent[];
   reasoning_summary: string;
+  tactical_insights?: string[];
 }
 
 export const MODEL_ID = "gemini-2.0-flash";
@@ -137,7 +139,7 @@ export async function chatAI(message: string, history: any[]): Promise<string> {
   return data.text;
 }
 
-export const buildMatchAnalysisPrompt = (matchData: any, h2hData: any, teamStats?: { home: any; away: any }, weather?: any, lineups?: any, oddsData?: any) => {
+export const buildMatchAnalysisPrompt = (matchData: any, h2hData: any, teamStats?: { home: any; away: any }, weather?: any, lineups?: any, oddsData?: any, historicalTrends?: any) => {
   const h2hSummary = h2hData ? `
 Head-to-Head Stats:
 Total Matches: ${h2hData.aggregates.numberOfMatches}
@@ -145,6 +147,14 @@ ${matchData.homeTeam.name} Wins: ${h2hData.aggregates.homeTeam.wins}
 ${matchData.awayTeam.name} Wins: ${h2hData.aggregates.awayTeam.wins}
 Recent Results: ${h2hData.matches?.slice(0,3).map((m: any) => `${m.homeTeam.name} ${m.score.fullTime.home}-${m.score.fullTime.away} ${m.awayTeam.name}`).join(', ')}
 ` : "Head-to-Head data not available.";
+
+  const trendContext = historicalTrends ? `
+Historical Decadal Trends (50-Year Context for ${matchData.competition.name}):
+- Baseline Home Win Rate: ${historicalTrends.win_rate_home}%
+- Baseline Away Win Rate: ${historicalTrends.win_rate_away}%
+- Upset Frequency Node: ${historicalTrends.upset_frequency}%
+- Historical League Average xG: ${historicalTrends.avg_xg_home} (Home) / ${historicalTrends.avg_xg_away} (Away)
+` : "";
 
   const statsContext = teamStats ? `
 Detailed Team Statistics (Season Averages) & Recent Form:
@@ -193,8 +203,13 @@ Market Odds Context:
 ${oddsData.bookmakers?.map((b: any) => `- ${b.name}: Home(${b.markets.h2h.home}), Draw(${b.markets.h2h.draw}), Away(${b.markets.h2h.away})`).join('\n') || 'N/A'}
 ` : "";
 
-  return `Role: Senior Quantitative Sports Analyst & Predictive Mathematical Modeler.
-Task: Execute a "High-Fidelity Strategic Forecast" using a multi-layered Bayesian weighting engine.
+  return `Role: Tactical Systems Architect & Senior Predictive Quantitative Match Modeler.
+Task: Execute a "High-Density Tactical Forecast" using a multi-layered Bayesian weighting engine.
+
+SCORING WEIGHT AGGREGATOR (Internal Logic):
+1. Historical Trends (30% Weight): Analyze 50-year win rates, upset frequencies, and historical head-to-head dominance.
+2. Modern Form (50% Weight): Analyze the last 5 match results, possession efficiency, xG conversion, and defensive solidity.
+3. Human Signals (20% Weight): Factor in current injury reports, weather-induced fatigue, and roster intelligence.
 
 Engagement Context:
 Fixture: ${matchData.homeTeam.name} vs ${matchData.awayTeam.name}
@@ -202,27 +217,27 @@ Competition: ${matchData.competition.name}
 Venue: ${matchData.venue} (Home advantage weighting: active)
 
 ${h2hSummary}
+${trendContext}
 ${statsContext}
 ${environmentContext}
 ${lineupContext}
 ${oddsContext}
 
-Analytical Constraints & Directives:
-1. UNBIASED CALCULATIONS: Avoid equal distributions (e.g., 33/33/33). Calculate specific edges based on input data.
-2. HOME-AWAY BIAS: Explicitly factor in ${matchData.homeTeam.name}'s home dominance vs ${matchData.awayTeam.name}'s away fragility.
-3. TACTICAL SYNC: Factor in possession styles and shot conversion efficiencies provided in stats.
-4. ENVIRONMENTAL FRICTION: Analyze how the ${weather?.description || 'current'} weather affects match tempo and goal probability (e.g., rain slowing down counter-attacks).
-5. RISK SENSITIVITY: Identify "Trap Game" scenarios where the favorite is statistically over-leveraged.
-6. VALUE IDENTIFICATION: Use the Market Odds Context to determine if the win probabilities suggest a "Value Bet".
+Strategic Intelligence Directives:
+1. VOLATILITY INDEXING: Calculate a Volatility Index (0-100) by comparing your calculated win probabilities against the Market Odds Context. High disparity = High Volatility.
+2. HOME-AWAY FRICTION: Explicitly factor in ${matchData.homeTeam.name}'s home dominance vs ${matchData.awayTeam.name}'s away fragility.
+3. WEATHER ATTENUATION: Rain/Snow = 15% reduction in goal probability; High Wind = 10% increase in defensive error probability.
+4. TRAP IDENTIFICATION: If the favorite has <40% Modern Form win rate, flag as a "Trap Game".
 
 Output Schema (Strict JSON):
 {
   "match_id": "${matchData.id}",
   "prediction": {
-    "safe_side": "Team Name or Draw (The statistically safest outcome)",
+    "safe_side": "Team Name or Draw",
     "scoreline": "X-X",
-    "win_probability": { "home": 0.0, "away": 0.0, "draw": 0.0 }, (Values MUST sum to 100.0)
+    "win_probability": { "home": 0.0, "away": 0.0, "draw": 0.0 },
     "confidence_score": 0-100,
+    "volatility_index": 0-100,
     "expected_goals": { "home": 0.0, "away": 0.0 },
     "btts_probability": 0.0,
     "over_2_5_probability": 0.0,
@@ -230,13 +245,13 @@ Output Schema (Strict JSON):
     "value_bet": boolean,
     "value_explanation": "string describing the quantitative edge found",
     "trap_game_warning": boolean,
-    "trap_game_reason": "string (mandatory if warning is true)",
+    "trap_game_reason": "required if warning is true",
     "poisson_scorelines": [{"score": "1-0", "probability": 0.15}]
   },
   "risk_assessment": {
     "level": "Low/Medium/High",
-    "primary_risk": "Specific tactical or environmental threat",
-    "safety_buffer": "How to hedge this prediction",
+    "primary_risk": "string",
+    "safety_buffer": "string",
     "fatigue_index": { "home": 0-10, "away": 0-10 }
   },
   "form_analysis": { "home": "Brief tactical form summary", "away": "Brief tactical form summary" },
@@ -244,13 +259,13 @@ Output Schema (Strict JSON):
     "home": {
       "formation": "4-3-3",
       "starting_xi": [
-        { "name": "Player Name", "position": "GK", "is_key_player": false }
+        { "name": "Player Name", "position": "GK", "shirt_number": "1", "is_key_player": false }
       ]
     },
     "away": {
       "formation": "4-2-3-1",
       "starting_xi": [
-        { "name": "Player Name", "position": "GK", "is_key_player": false }
+        { "name": "Player Name", "position": "GK", "shirt_number": "1", "is_key_player": false }
       ]
     }
   },
@@ -261,12 +276,16 @@ Output Schema (Strict JSON):
   "micro_events": [
     { "type": "Specific Match Event (e.g., Late Goal, Early Booking)", "likelihood": "High/Med/Low", "reason": "string" }
   ],
-  "reasoning_summary": "Provide a detailed, quantitative justification for the win percentages. Mention specific stats used (possession, H2H, xG, weather) and how they influenced the final outcome."
+  "reasoning_summary": "Provide a detailed, quantitative justification for the win percentages. Mention specific stats used (possession, H2H, xG, weather) and how they influenced the final outcome.",
+  "tactical_insights": [
+    "Identify up to 5 critical tactical insights (e.g., 'Home team 80% win rate in rainy conditions', 'Away striker out-of-form: 0 goals in 400 mins')",
+    "Use concise, data-driven bullet points"
+  ]
 }`;
 };
 
-export async function analyzeMatch(matchData: any, h2hData: any, teamStats?: { home: any; away: any }, weather?: any, lineups?: any, oddsData?: any): Promise<MatchAnalysis> {
-  const prompt = buildMatchAnalysisPrompt(matchData, h2hData, teamStats, weather, lineups, oddsData);
+export async function analyzeMatch(matchData: any, h2hData: any, teamStats?: { home: any; away: any }, weather?: any, lineups?: any, oddsData?: any, historicalTrends?: any): Promise<MatchAnalysis> {
+  const prompt = buildMatchAnalysisPrompt(matchData, h2hData, teamStats, weather, lineups, oddsData, historicalTrends);
 
   const response = await fetch("/api/analyze", {
     method: "POST",

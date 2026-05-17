@@ -15,14 +15,11 @@ async function startServer() {
     try {
       let apiKey = process.env.FOOTBALL_API_KEY || process.env.FOOTBALL_DATA_API_KEY;
       
-      // Check for common placeholders or empty strings
       const placeholders = ["YOUR_KEY_HERE", "MY_API_KEY", "FOOTBALL_API_KEY", ""];
-      if (apiKey && placeholders.includes(apiKey.trim())) {
-        apiKey = undefined;
-      }
+      if (apiKey && placeholders.includes(apiKey.trim())) apiKey = undefined;
       
       if (!apiKey) {
-        console.warn("FOOTBALL_API_KEY not found or placeholder. Returning mock data.");
+        console.warn("FOOTBALL_API_KEY missing. Returning encrypted mock stream.");
         return res.json({
           isMock: true,
           matches: [
@@ -30,56 +27,28 @@ async function startServer() {
               id: 202601,
               utcDate: "2026-06-11T20:00:00Z",
               status: "TIMED",
-              competition: { name: "FIFA World Cup 2026", slug: "world-cup-2026", area: { name: "World" } },
-              area: { name: "World" },
-              homeTeam: { name: "USA" },
-              awayTeam: { name: "TBD" },
-              venue: "SoFi Stadium",
-              note: "Opening Match (Simulated)"
-            },
-            {
-              id: 101,
-              utcDate: new Date(Date.now() + 86400000).toISOString(),
-              status: "TIMED",
-              competition: { name: "Premier League", slug: "premier-league", area: { name: "England" } },
-              area: { name: "England" },
-              homeTeam: { name: "Arsenal" },
-              awayTeam: { name: "Manchester City" },
-              venue: "Emirates Stadium"
+              competition: { name: "FIFA World Cup", area: { name: "World" } },
+              homeTeam: { name: "SafeSide Node A", crest: "" },
+              awayTeam: { name: "SafeSide Node B", crest: "" },
+              venue: "Tactical Arena"
             }
           ]
         });
       }
 
-      // Calculate date range for next 7 days
-      const dateFrom = new Date().toISOString().split('T')[0];
-      const dateTo = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-
-      const response = await fetch(`https://api.football-data.org/v4/matches?dateFrom=${dateFrom}&dateTo=${dateTo}`, {
-        headers: { 
-          "X-Auth-Token": apiKey,
-          "Content-Type": "application/json"
-        },
+      const response = await fetch(`https://api.football-data.org/v4/matches`, {
+        headers: { "X-Auth-Token": apiKey },
       });
 
-      // Precise ES6 Throttling (as per Lead Dev request)
-      const requestsRemaining = response.headers.get('x-requests-available-minute');
-      const resetTime = response.headers.get('x-requestcounter-reset');
+      // Rate-Limit Forwarding
+      const available = response.headers.get('x-requests-available-minute');
+      if (available) res.setHeader('X-Tactical-Capacity', available);
 
-      if (requestsRemaining) {
-        res.setHeader('X-Requests-Available', requestsRemaining);
-      }
-
-      if (!response.ok) {
-        const errorData = (await response.json()) as any;
-        let message = errorData.message || `API error: ${response.status}`;
-        throw new Error(message);
-      }
-
-      const data = (await response.json()) as any;
-      res.json({ ...data, requestsRemaining, resetTime });
+      if (!response.ok) throw new Error(`Node Response Error: ${response.status}`);
+      const data = await response.json();
+      res.json(data);
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Failed to fetch match data" });
+      res.status(500).json({ error: "Intelligence Feed Interrupted." });
     }
   });
 
@@ -434,6 +403,10 @@ async function startServer() {
         },
       });
 
+      // Rate-Limit Forwarding
+      const available = response.headers.get('x-requests-available-minute');
+      if (available) res.setHeader('X-Tactical-Capacity', available);
+
       if (!response.ok) {
         throw new Error(`API error: ${response.status}`);
       }
@@ -514,6 +487,10 @@ async function startServer() {
         },
       });
 
+      // Rate-Limit Forwarding
+      const available = response.headers.get('x-requests-available-minute');
+      if (available) res.setHeader('X-Tactical-Capacity', available);
+
       // Throttling Check
       const requestsRemaining = response.headers.get('x-requests-available-minute');
       if (requestsRemaining && parseInt(requestsRemaining) < 2) {
@@ -578,6 +555,10 @@ async function startServer() {
       const response = await fetch(`https://api.football-data.org/v4/competitions/${id}/standings`, {
         headers: { "X-Auth-Token": apiKey }
       });
+
+      // Rate-Limit Forwarding
+      const available = response.headers.get('x-requests-available-minute');
+      if (available) res.setHeader('X-Tactical-Capacity', available);
 
       if (!response.ok) {
         throw new Error(`API error: ${response.status}`);

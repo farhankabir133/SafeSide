@@ -8,6 +8,7 @@ CREATE TABLE predictions (
   user_id UUID REFERENCES auth.users(id),
   home_team TEXT NOT NULL,
   away_team TEXT NOT NULL,
+  competition_name TEXT,
   prediction_score_home INTEGER NOT NULL,
   prediction_score_away INTEGER NOT NULL,
   actual_score_home INTEGER,

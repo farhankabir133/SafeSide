@@ -74,7 +74,7 @@ export const Navbar: React.FC<NavbarProps> = ({ accuracy, leagueCount }) => {
 
             <div className="flex flex-col items-end">
               <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-widest leading-none">Global Accuracy</span>
-              <span className="text-sm font-black text-emerald-500">{accuracy.toFixed(1)}%</span>
+              <span className="text-sm font-black text-emerald-500">{(accuracy || 0).toFixed(1)}%</span>
             </div>
             <div className="flex items-center gap-2">
               <Globe className="w-4 h-4 text-zinc-600" />

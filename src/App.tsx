@@ -18,6 +18,8 @@ import { TacticalTicker } from "@/src/components/TacticalTicker";
 import { CommandConsole } from "@/src/components/CommandCenter/CommandConsole";
 import { useAgent } from "@/src/contexts/AgentContext";
 import React, { useMemo, useState, useEffect } from "react";
+import { Toaster, toast } from 'sonner';
+import { LiveNotification } from '@/src/components/CommandCenter/LiveNotification';
 
 const QuotaBanner = ({ cooldownTime }: { cooldownTime: number }) => {
   const [timeLeft, setTimeLeft] = useState(Math.ceil((cooldownTime - Date.now()) / 1000));
@@ -70,7 +72,6 @@ export default function App() {
   const { matches, loading, error, predictions, runAnalysis, stats, fetchMatches, isDemo, rateLimit, lastSyncedAt, historicalData, analyzingIds, analysisErrors, globalCooldown } = usePredictions();
   const { openAgentWithMatch } = useAgent();
   const [expandedLeagues, setExpandedLeagues] = useState<Record<string, boolean>>({});
-  const [scoreFlash, setScoreFlash] = useState<Record<string, boolean>>({});
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [leagueFilter, setLeagueFilter] = useState<string>("all");
   const [dateFilter, setDateFilter] = useState<string>("all");
@@ -109,29 +110,30 @@ export default function App() {
 
   useEffect(() => {
     const freshScores: Record<string, string> = {};
-    const flashes: Record<string, boolean> = {};
 
     matches.forEach(m => {
-      if (['IN_PLAY', 'PAUSED', 'LIVE'].includes(m.status)) {
+      const isMatchLive = ['IN_PLAY', 'PAUSED', 'LIVE'].includes(m.status);
+      if (isMatchLive) {
         const scoreStr = `${m.score?.fullTime?.home}-${m.score?.fullTime?.away}`;
         freshScores[m.id] = scoreStr;
         
-        if (prevScores.current[m.id] && prevScores.current[m.id] !== scoreStr) {
-          flashes[m.id] = true;
+        const prevFullScore = prevScores.current[m.id];
+        
+        if (prevFullScore && prevFullScore !== scoreStr) {
+          // Tactical Toast for Score Change
+          toast.custom((t) => (
+            <LiveNotification 
+              homeTeam={m.homeTeam.name}
+              awayTeam={m.awayTeam.name}
+              homeScore={m.score?.fullTime?.home}
+              awayScore={m.score?.fullTime?.away}
+              minute={m.minute}
+              isGoal={true}
+            />
+          ), { duration: 8000 });
         }
       }
     });
-
-    if (Object.keys(flashes).length > 0) {
-      setScoreFlash(prev => ({ ...prev, ...flashes }));
-      setTimeout(() => {
-        setScoreFlash(prev => {
-          const newState = { ...prev };
-          Object.keys(flashes).forEach(id => delete newState[id]);
-          return newState;
-        });
-      }, 2000);
-    }
 
     prevScores.current = freshScores;
   }, [matches]);
@@ -304,6 +306,7 @@ export default function App() {
 
   return (
     <div className="bg-[#0a0a0a] text-zinc-100 font-sans selection:bg-yellow-500 selection:text-black min-h-screen">
+      <Toaster position="top-right" theme="dark" />
       <TacticalTicker matches={matches} />
       {/* Global Quota Alert */}
       <AnimatePresence>
@@ -426,7 +429,6 @@ export default function App() {
                       onQueryAgent={() => openAgentWithMatch(match)}
                       onViewDetails={() => handleInspectMatch(match.id.toString())}
                       onRetry={() => runAnalysis(match.id.toString())}
-                      isFlashing={scoreFlash[match.id]}
                       highlighted={true}
                       isAnalyzing={analyzingIds.has(match.id.toString())}
                       error={analysisErrors[match.id]}
@@ -557,7 +559,6 @@ export default function App() {
                               onQueryAgent={() => openAgentWithMatch(match)}
                               onViewDetails={() => handleInspectMatch(match.id.toString())}
                               onRetry={() => runAnalysis(match.id.toString())}
-                              isFlashing={scoreFlash[match.id]}
                               highlighted={detectedMatchId === match.id.toString()}
                               isAnalyzing={analyzingIds.has(match.id.toString())}
                               error={analysisErrors[match.id]}

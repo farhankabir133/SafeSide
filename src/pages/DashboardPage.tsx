@@ -46,6 +46,7 @@ export default function DashboardPage() {
     streak: 0,
     roi: 0
   });
+  const [tacticalCapacity, setTacticalCapacity] = useState<string | null>(null);
 
   const [page, setPage] = useState(0);
   const pageSize = 10;
@@ -53,8 +54,23 @@ export default function DashboardPage() {
   useEffect(() => {
     if (user) {
       fetchUserPredictions();
+      fetchNetworkCapacity();
+      
+      const interval = setInterval(() => {
+        fetchUserPredictions();
+      }, 30000); // 30s for dashboard is enough
+      
+      return () => clearInterval(interval);
     }
   }, [user]);
+
+  const fetchNetworkCapacity = async () => {
+    try {
+      const res = await fetch('/api/matches');
+      const capacity = res.headers.get('X-Tactical-Capacity');
+      if (capacity) setTacticalCapacity(capacity);
+    } catch (e) {}
+  };
 
   const fetchUserPredictions = async () => {
     try {
@@ -152,6 +168,13 @@ export default function DashboardPage() {
           <Badge variant="outline" className="border-yellow-500/30 text-yellow-500 bg-yellow-500/5 font-mono text-[9px] py-1.5 px-4 rounded-lg uppercase tracking-[0.2em] mb-4">
              Terminal Dashboard Overlay
           </Badge>
+          <div className="flex items-center gap-4 mb-2">
+             <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+             <span className="text-[10px] font-black text-emerald-500/80 uppercase tracking-widest">Node Connection Stable</span>
+             {tacticalCapacity && (
+                <span className="text-[9px] font-mono text-zinc-600 uppercase border-l border-zinc-800 pl-4">Capacity: {tacticalCapacity} R/M</span>
+             )}
+          </div>
           <h2 className="text-6xl font-black tracking-tighter uppercase leading-[0.9]">Command <br/><span className="text-zinc-600">Cockpit</span></h2>
         </div>
         <div className="text-right">
@@ -164,8 +187,8 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
         {[
           { label: 'Intelligence Scans', value: stats.total, icon: Target, color: 'text-blue-500', trend: 'Global Network' },
-          { label: 'Unit Accuracy', value: `${stats.winRate.toFixed(1)}%`, icon: Trophy, color: 'text-emerald-500', trend: 'Delta: Stable' },
-          { label: 'Tactical ROI', value: `${stats.roi.toFixed(1)}%`, icon: stats.roi >= 0 ? TrendingUp : TrendingDown, color: stats.roi >= 0 ? 'text-yellow-500' : 'text-red-500', trend: '1.9 Avg Basis' },
+          { label: 'Unit Accuracy', value: `${(stats.winRate || 0).toFixed(1)}%`, icon: Trophy, color: 'text-emerald-500', trend: 'Delta: Stable' },
+          { label: 'Tactical ROI', value: `${(stats.roi || 0).toFixed(1)}%`, icon: stats.roi >= 0 ? TrendingUp : TrendingDown, color: stats.roi >= 0 ? 'text-yellow-500' : 'text-red-500', trend: '1.9 Avg Basis' },
           { label: 'Operational Streak', value: stats.streak, icon: Activity, color: 'text-zinc-100', trend: 'Verified' },
         ].map((stat, i) => (
           <motion.div 

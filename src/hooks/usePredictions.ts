@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { MatchAnalysis, analyzeMatch } from '@/src/services/geminiService';
 import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
+import { useAuth } from '@/src/contexts/AuthContext';
 
 export function usePredictions() {
+  const { user } = useAuth();
   const [matches, setMatches] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -52,7 +54,7 @@ export function usePredictions() {
     fetchStats();
     fetchHistoricalData();
     fetchPredictionsFromDb();
-  }, []);
+  }, [user]); // Re-fetch when user logs in/out
 
   const fetchPredictionsFromDb = async () => {
     if (!isSupabaseConfigured()) return;
@@ -92,12 +94,12 @@ export function usePredictions() {
   }, [matches.length, loading, hasAttemptedInitialAnalysis]);
 
   useEffect(() => {
-    // Set up real-time polling every 30 seconds for live updates
+    // Set up real-time polling every 10 seconds for live matches, 60s for upcoming
     const interval = setInterval(() => {
-      const hasLiveMatches = matches.some(m => ['IN_PLAY', 'PAUSED', 'LIVE'].includes(m.status));
-      // Poll every 30s if live matches exist, otherwise every 60s
+      const liveStatus = ['IN_PLAY', 'PAUSED', 'LIVE'];
+      const hasLiveMatches = matches.some(m => liveStatus.includes(m.status));
       fetchMatches(true); 
-    }, matches.some(m => ['IN_PLAY', 'PAUSED', 'LIVE'].includes(m.status)) ? 30000 : 60000);
+    }, matches.some(m => ['IN_PLAY', 'PAUSED', 'LIVE'].includes(m.status)) ? 10000 : 60000);
 
     return () => clearInterval(interval);
   }, [matches.some(m => ['IN_PLAY', 'PAUSED', 'LIVE'].includes(m.status))]);
@@ -226,6 +228,21 @@ export function usePredictions() {
       let oddsData = null;
       if (oddsRes.status === 'fulfilled' && oddsRes.value.ok) oddsData = await oddsRes.value.json();
 
+      // Fetch Historical Trends from Supabase for Predictive RAG
+      let historicalTrends = null;
+      try {
+        if (isSupabaseConfigured() && match.competition?.id) {
+          const { data: trendData } = await supabase
+            .from('historical_trends')
+            .select('*')
+            .eq('league_id', match.competition.id.toString())
+            .single();
+          historicalTrends = trendData;
+        }
+      } catch (e) {
+        console.warn("Trend retrieval node bypassed:", e);
+      }
+
       // Lineups usually not available via team/match proxy in free tier, but we'll try if endpoint exists
       let lineups = null;
       try {
@@ -233,7 +250,7 @@ export function usePredictions() {
         if (lineupsRes.ok) lineups = await lineupsRes.json();
       } catch (e) {}
 
-      const result: MatchAnalysis = await analyzeMatch(match, h2hData, teamStats, weatherData, lineups, oddsData);
+      const result: MatchAnalysis = await analyzeMatch(match, h2hData, teamStats, weatherData, lineups, oddsData, historicalTrends);
       
       // Inject timestamp for cache invalidation
       const resultWithMeta = { ...result, _timestamp: Date.now() };
@@ -251,19 +268,28 @@ export function usePredictions() {
       // Record to Supabase (Optional for UI to function)
       try {
         if (isSupabaseConfigured()) {
-          await supabase.from('predictions').upsert({
+          const payload: any = {
             match_id: matchId,
             home_team: match.homeTeam.name,
             away_team: match.awayTeam.name,
+            competition_name: match.competition?.name || 'Unknown',
             prediction_score_home: isNaN(h) ? 0 : h,
             prediction_score_away: isNaN(a) ? 0 : a,
-            confidence_score: result.prediction.confidence_score * 10,
+            confidence_score: result.prediction.confidence_score,
+            volatility_index: result.prediction.volatility_index,
             risk_level: result.risk_assessment.level,
             analysis: result.reasoning_summary,
             full_analysis: JSON.stringify(result),
             coincidence_likelihood: JSON.stringify(result.micro_events),
             status: 'pending'
-          }, { onConflict: 'match_id' });
+          };
+
+          // Attach user context if authenticated
+          if (user) {
+            payload.user_id = user.id;
+          }
+
+          await supabase.from('predictions').upsert(payload, { onConflict: 'match_id' });
           await fetchStats();
         }
       } catch (dbError) {

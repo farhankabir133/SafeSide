@@ -1,78 +1,113 @@
-import { createClient } from '@supabase/supabase-js';
-import fetch from 'node-fetch';
-import 'dotenv/config';
-
 /**
  * SafeSide Truth Service
- * Automatically reconciles AI predictions with real-world results.
+ * Automated Verification Node for Intelligence Calibration
+ * 
+ * Intended execution: Scheduled GitHub Action (Every 6 hours)
  */
-async function reconcilePredictions() {
-  const supabase = createClient(
-    process.env.VITE_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY
-  );
 
-  const { data: predictions, error } = await supabase
-    .from('predictions')
-    .select('*')
-    .eq('status', 'pending');
+import { createClient } from '@supabase/supabase-common'; // Note: In real environment use @supabase/supabase-js
+import fetch from 'node-fetch';
 
-  if (error) {
-    console.error('[TRUTH SERVICE] Database Error:', error.message);
-    return;
-  }
+// Environment variables required: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, FOOTBALL_DATA_API_KEY
 
-  console.log(`[TRUTH SERVICE] Initializing reconciliation for ${predictions.length} pending tactical operations...`);
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const footballApiKey = process.env.FOOTBALL_DATA_API_KEY;
 
-  for (const pred of predictions) {
-    try {
-      const response = await fetch(`https://api.football-data.org/v4/matches/${pred.match_id}`, {
-        headers: { 'X-Auth-Token': process.env.FOOTBALL_API_KEY || process.env.FOOTBALL_DATA_API_KEY }
-      });
-      
-      if (!response.ok) {
-        console.warn(`[TRUTH SERVICE] Match ${pred.match_id} fetch failed: ${response.status}`);
-        continue;
-      }
-
-      const match = await response.json();
-
-      if (match.status === 'FINISHED') {
-        const actualHome = match.score.fullTime.home;
-        const actualAway = match.score.fullTime.away;
-        
-        let outcome = 'loss';
-        const predictedWinner = pred.prediction_score_home > pred.prediction_score_away ? 'home' : 
-                                pred.prediction_score_away > pred.prediction_score_home ? 'away' : 'draw';
-        const actualWinner = actualHome > actualAway ? 'home' : 
-                             actualAway > actualHome ? 'home' : 'draw';
-
-        if (predictedWinner === actualWinner) outcome = 'win';
-
-        const { error: updateError } = await supabase
-          .from('predictions')
-          .update({
-            actual_score_home: actualHome,
-            actual_score_away: actualAway,
-            outcome: outcome,
-            status: 'completed'
-          })
-          .eq('id', pred.id);
-
-        if (updateError) {
-          console.error(`[TRUTH SERVICE] Update failed for ${pred.id}:`, updateError.message);
-        } else {
-          console.log(`[VERIFIED] Match ${pred.match_id}: Expected ${pred.prediction_score_home}-${pred.prediction_score_away}, Actual ${actualHome}-${actualAway} -> ${outcome.toUpperCase()}`);
-        }
-      } else {
-         console.log(`[PENDING] Match ${pred.match_id} status: ${match.status}. Skipping.`);
-      }
-    } catch (e) {
-      console.error(`[TRUTH SERVICE] Fatal error during reconciliation of match ${pred.match_id}:`, e.message);
-    }
-  }
-  
-  console.log('[TRUTH SERVICE] Cycle complete.');
+if (!supabaseUrl || !supabaseKey || !footballApiKey) {
+  console.error('[TRUTH_SERVICE] CRITICAL: Missing authentication credentials.');
+  process.exit(1);
 }
 
-reconcilePredictions();
+// Note: Using standard fetch for Supabase if library not available in JS context
+async function updatePrediction(predictionId, actualHome, actualAway) {
+  const outcome = (actualHome === actualAway) ? 'pending' : (actualHome > actualAway ? 'win' : 'loss');
+  // Simple logic: if user predicted home win and it was a home win, it's a win.
+  // Real logic should compare predicted scores vs actual outcomes.
+  
+  // Fetch prediction details first
+  const getRes = await fetch(`${supabaseUrl}/rest/v1/predictions?id=eq.${predictionId}`, {
+    headers: {
+      'apikey': supabaseKey,
+      'Authorization': `Bearer ${supabaseKey}`
+    }
+  });
+  const predictions = await getRes.json();
+  const p = predictions[0];
+
+  if (!p) return;
+
+  const userPredictedWinner = p.prediction_score_home > p.prediction_score_away ? 'HOME_TEAM' : 
+                             p.prediction_score_away > p.prediction_score_home ? 'AWAY_TEAM' : 'DRAW';
+  
+  const actualWinner = actualHome > actualAway ? 'HOME_TEAM' : 
+                      actualAway > actualHome ? 'AWAY_TEAM' : 'DRAW';
+
+  const finalOutcome = (userPredictedWinner === actualWinner) ? 'win' : 'loss';
+
+  await fetch(`${supabaseUrl}/rest/v1/predictions?id=eq.${predictionId}`, {
+    method: 'PATCH',
+    headers: {
+      'apikey': supabaseKey,
+      'Authorization': `Bearer ${supabaseKey}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=minimal'
+    },
+    body: JSON.stringify({
+      actual_score_home: actualHome,
+      actual_score_away: actualAway,
+      outcome: finalOutcome,
+      status: 'completed'
+    })
+  });
+}
+
+async function runTruthService() {
+  console.log('[TRUTH_SERVICE] Initializing automated verification sequence...');
+
+  try {
+    // 1. Fetch all pending predictions
+    const res = await fetch(`${supabaseUrl}/rest/v1/predictions?status=eq.pending`, {
+      headers: {
+        'apikey': supabaseKey,
+        'Authorization': `Bearer ${supabaseKey}`
+      }
+    });
+    
+    const pendingPredictions = await res.json();
+    console.log(`[TRUTH_SERVICE] Located ${pendingPredictions.length} pending tactical nodes.`);
+
+    for (const prediction of pendingPredictions) {
+      const matchId = prediction.match_id;
+      
+      // 2. Fetch actual result from Football-Data.org
+      const matchRes = await fetch(`https://api.football-data.org/v4/matches/${matchId}`, {
+        headers: { 'X-Auth-Token': footballApiKey }
+      });
+
+      if (matchRes.ok) {
+        const matchData = await matchRes.json();
+        
+        if (matchData.status === 'FINISHED') {
+          const actualHome = matchData.score.fullTime.home;
+          const actualAway = matchData.score.fullTime.away;
+          
+          console.log(`[TRUTH_SERVICE] Verifying Match ${matchId}: Predicted ${prediction.prediction_score_home}-${prediction.prediction_score_away}, Actual ${actualHome}-${actualAway}`);
+          
+          // 3. Update Supabase
+          await updatePrediction(prediction.id, actualHome, actualAway);
+          console.log(`[TRUTH_SERVICE] Node ${prediction.id} calibrated.`);
+        }
+      }
+      
+      // Respect rate limits (Free tier: 10 requests per minute)
+      await new Promise(r => setTimeout(r, 6000)); 
+    }
+
+    console.log('[TRUTH_SERVICE] Verification sequence complete.');
+  } catch (error) {
+    console.error('[TRUTH_SERVICE] Tactical error during verification:', error);
+  }
+}
+
+runTruthService();
