@@ -1830,7 +1830,7 @@ const FormPanel = ({ side, teamName, teamId, recentMatches }: any) => {
     }
   };
 
-  const results = recentMatches?.map(getResult).reverse() || [];
+  const matches = recentMatches ? [...recentMatches].reverse() : [];
   
   // Calculate average goals and clean sheets
   const avgGoals = recentMatches?.length ? (
@@ -1861,18 +1861,32 @@ const FormPanel = ({ side, teamName, teamId, recentMatches }: any) => {
           </div>
        </div>
        
-       <div className="flex gap-3 h-14 bg-zinc-900/40 border border-zinc-900 p-2 rounded-2xl">
+       <div className="flex gap-2 min-h-[56px]">
           {recentMatches ? (
-            results.map((res: string, i: number) => (
-              <div key={i} className={cn(
-                "flex-1 flex items-center justify-center rounded-xl font-black text-sm border-2",
-                res === 'W' ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400' :
-                res === 'D' ? 'bg-zinc-800 border-zinc-700 text-zinc-500' :
-                'bg-red-500/10 border-red-500 text-red-400'
-              )}>
-                {res}
-              </div>
-            ))
+            matches.map((m: any, i: number) => {
+              const res = getResult(m);
+              const isHome = m.homeTeam.id === teamId;
+              const opponent = isHome ? m.awayTeam.name : m.homeTeam.name;
+              const teamScore = isHome ? m.score.fullTime.home : m.score.fullTime.away;
+              const oppScore = isHome ? m.score.fullTime.away : m.score.fullTime.home;
+
+              return (
+                <div key={i} className="flex-1 flex flex-col gap-2">
+                  <div className={cn(
+                    "flex-1 flex items-center justify-center rounded-xl font-black text-sm border-2 h-10",
+                    res === 'W' ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400' :
+                    res === 'D' ? 'bg-zinc-800 border-zinc-700 text-zinc-500' :
+                    'bg-red-500/10 border-red-500 text-red-400'
+                  )}>
+                    {res}
+                  </div>
+                  <div className="flex flex-col items-center">
+                    <span className="text-[7px] font-bold text-zinc-600 uppercase truncate w-full text-center">{opponent}</span>
+                    <span className="text-[8px] font-black text-zinc-400">{teamScore}-{oppScore}</span>
+                  </div>
+                </div>
+              );
+            })
           ) : (
             Array(5).fill(0).map((_, i) => (
               <div key={i} className="flex-1 bg-zinc-900 animate-pulse rounded-xl" />

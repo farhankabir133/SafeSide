@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { BrainCircuit, Send, User, Bot, Loader2, X } from "lucide-react";
+import { BrainCircuit, Send, User, Bot, Loader2, X, AlertCircle } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "@/lib/utils";
 import { chatAI, formatAIError } from "@/src/services/geminiService";
+import ReactMarkdown from 'react-markdown';
 
 interface Message {
   role: 'user' | 'model';
@@ -19,7 +20,17 @@ interface ChatInterfaceProps {
 
 export function ChatInterface({ matches, selectedMatch, onClearSelected }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'model', content: "Hello. I am the Safe Side Oracle. Ask me about match dynamics, tactical risks, or predictive logic for any upcoming fixture." }
+    { 
+      role: 'model', 
+      content: `### 👋 Oracle Tactical Console Active
+
+I am the **Safe Side Oracle**, your predictive intelligence copilot. I analyze performance matrices, squad dynamics, and market variables to eliminate gambler's bias.
+
+Select any upcoming match and ask me for:
+- ⚡ **Tactical Audits**: Playstyles, tempos, and goal probability biases.
+- 🛡️ **Risk Anomalies**: Spotting squad fatigue, "trap matches", and motivation shifts.
+- 🎯 **Mathematical Insights**: Poisson density mapping and fractional staking alignments.`
+    }
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -36,7 +47,6 @@ export function ChatInterface({ matches, selectedMatch, onClearSelected }: ChatI
   };
 
   useEffect(() => {
-    // Small delay to ensure content is rendered before scrolling
     const timer = setTimeout(scrollToBottom, 100);
     return () => clearTimeout(timer);
   }, [messages, loading]);
@@ -58,13 +68,10 @@ export function ChatInterface({ matches, selectedMatch, onClearSelected }: ChatI
           userMessage.toLowerCase().includes(m.awayTeam.name.toLowerCase())
         );
         if (activeMatch) {
-          // Dispatch event to update App state so it can be highlighted
           window.dispatchEvent(new CustomEvent('matchDetected', { detail: activeMatch }));
         }
       }
 
-      // Filter history: Gemini requires the first message to be 'user'
-      // We also exclude the initial welcome message from the history sent to the model
       const chatHistory = messages
         .filter((m, idx) => !(idx === 0 && m.role === 'model'))
         .map(m => ({
@@ -80,22 +87,30 @@ export function ChatInterface({ matches, selectedMatch, onClearSelected }: ChatI
         ? `PRORITY SCAN TARGET: ${activeMatch.homeTeam.name} vs ${activeMatch.awayTeam.name} (${activeMatch.competition?.name || 'Unknown'})\nUser is specifically interested in this match.`
         : '';
 
-      const systemPrompt = `You are the "Safe Side Oracle", a high-level Professional Predictive Agent. 
-Current Date: May 2026. 
-Mission: Analyze, scan, and provide feedback on football fixtures with extreme scrutiny.
+      const systemPrompt = `You are the "Safe Side Oracle", an elite predictive intelligence agent for football analytics.
+Current Date: May 2026.
 
-Professional Protocol:
-1. Analytical Depth: Use the match context provided below.
-2. Risk Management: Identify high-risk variables (fatigue, motivation, suspension).
-3. Tone: Precise, data-focused, and professional. 
-4. Constraint: No financial advice. 
+MISSION:
+Weigh tactical patterns, squad rest indices, injury telemetry, and mathematical density overlays (Poisson/Kelly) to deliver immediate, high-probability advice for any football fan. Your output must be highly concise, visually organized, and professional.
 
-${selectedContext}
+REQUIRED LAYOUT STRUCTURE:
+Never return wall-of-text paragraphs. Always format your responses using these exact markdown headers and bold terms:
 
-Scanned Data Context:
-${matchesSummary}`;
+### ⚡ TACTICAL AUDIT
+- **Style Index**: [State main attacking style and matchup dynamic, e.g. High-pressing home side vs low-block counter side]
+- **Key Vulnerabilities**: [Direct list of defensive Risks, transition traps, or fatigue vectors]
 
-      const fullMessage = `${systemPrompt}\n\nUser Message: ${userMessage}`;
+### 🛡️ RISK & TRAP CHECK
+- **Tactical Friction**: [Highlight suspensions, motivation level (e.g. cup priority), or key physical factors]
+- **Value Trap rating**: [X/10 rating (where x is 1 to 10) with one crisp justification line, e.g., "7/10: Public over-backing the home team despite severe travel strain"]
+
+### 🎯 MATHEMATICAL CONCLUSION
+- **Poisson Value Focus**: [Best value scorelines or low-risk markets, e.g. "Draw or Under 2.5 goals"]
+- **Capital Deployment**: [Staking advice, e.g., "Suggest standard 0.2x fractional Kelly. Moderate risk, keep stake at 1.5%."]
+
+Keep all sentences extremely bite-sized, data-focused, objective, and easy for any casual football fan to instantly digest. No fluff or conversational introductions.`;
+
+      const fullMessage = `${systemPrompt}\n\n${selectedContext}\n\nUser Question: ${userMessage}`;
       const text = await chatAI(fullMessage, chatHistory);
 
       setMessages(prev => [...prev, { role: 'model', content: text }]);
@@ -108,16 +123,16 @@ ${matchesSummary}`;
   };
 
   return (
-    <div className="flex flex-col h-[600px] bg-zinc-950 border border-zinc-900 rounded-3xl overflow-hidden shadow-2xl">
+    <div className="flex flex-col h-[600px] bg-zinc-950 border border-zinc-900 rounded-3xl overflow-hidden shadow-2xl relative">
       <div className="p-6 border-b border-zinc-900 bg-zinc-900/20 flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="bg-yellow-500/10 p-2 rounded-lg border border-yellow-500/20">
-              <BrainCircuit className="w-5 h-5 text-yellow-500" />
+              <BrainCircuit className="w-5 h-5 text-yellow-500 animate-pulse" />
             </div>
             <div>
               <h4 className="text-sm font-black uppercase tracking-tighter">AI Prediction Lab</h4>
-              <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest leading-none">Safe Side Oracle v1.0</p>
+              <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest leading-none">Safe Side Oracle v1.1</p>
             </div>
           </div>
         </div>
@@ -140,7 +155,7 @@ ${matchesSummary}`;
                 variant="ghost" 
                 size="icon" 
                 onClick={onClearSelected}
-                className="w-6 h-6 rounded-full hover:bg-yellow-500 hover:text-black opacity-30 group-hover:opacity-100 transition-all"
+                className="w-6 h-6 rounded-full hover:bg-yellow-500 hover:text-black opacity-30 group-hover:opacity-100 transition-all cursor-pointer"
               >
                 <X className="w-3 h-3" />
               </Button>
@@ -161,26 +176,58 @@ ${matchesSummary}`;
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 className={cn(
-                  "flex gap-4 max-w-[85%]",
+                  "flex gap-4 max-w-[92%]",
                   m.role === 'user' ? "ml-auto flex-row-reverse" : "mr-auto"
                 )}
               >
                 <div className={cn(
                   "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border",
-                  m.role === 'user' ? "bg-zinc-800 border-zinc-700" : "bg-yellow-500/10 border-yellow-500/20"
+                  m.role === 'user' ? "bg-zinc-850 border-zinc-700" : "bg-yellow-500/10 border-yellow-500/20"
                 )}>
                   {m.role === 'user' ? <User className="w-4 h-4 text-zinc-400" /> : <Bot className="w-4 h-4 text-yellow-500" />}
                 </div>
+                
                 <div className={cn(
-                  "p-4 rounded-2xl text-sm leading-relaxed",
-                  m.role === 'user' ? "bg-zinc-900 text-zinc-100" : "bg-zinc-950 border border-zinc-900 text-zinc-300"
+                  "p-4 rounded-2xl text-sm leading-relaxed relative overflow-hidden",
+                  m.role === 'user' 
+                    ? "bg-zinc-900 text-zinc-100 border border-zinc-800" 
+                    : "bg-gradient-to-b from-zinc-950 to-zinc-950/90 border border-zinc-800 text-zinc-300 shadow-lg"
                 )}>
                   {m.role === 'model' && (
-                    <div className="flex items-center gap-1.5 mb-2">
-                       <span className="text-[9px] font-black uppercase tracking-widest text-yellow-500 bg-yellow-500/10 px-2 py-0.5 rounded border border-yellow-500/20">Verified Agent</span>
+                    <div className="flex items-center justify-between mb-3 pointer-events-none">
+                       <span className="text-[8px] font-black uppercase tracking-widest text-yellow-500 bg-yellow-500/10 px-2 py-0.5 rounded border border-yellow-500/20">
+                         Oracle System Verified
+                       </span>
                     </div>
                   )}
-                  {m.content}
+                  
+                  {/* Markdown Renderer with Custom Styled Elements for Football Fans */}
+                  <div className="markdown-body space-y-2 text-zinc-300">
+                    <ReactMarkdown
+                      components={{
+                        h3: ({node, ...props}) => (
+                          <h3 className="text-xs font-black uppercase text-yellow-500 mt-4 mb-2 tracking-wider flex items-center gap-1.5 border-b border-zinc-900 pb-1" {...props} />
+                        ),
+                        p: ({node, ...props}) => (
+                          <p className="text-xs text-zinc-350 leading-relaxed my-1 font-sans" {...props} />
+                        ),
+                        ul: ({node, ...props}) => (
+                          <ul className="list-disc pl-4 space-y-1.5 my-2 text-xs text-zinc-300" {...props} />
+                        ),
+                        li: ({node, ...props}) => (
+                          <li className="text-xs text-zinc-300 leading-relaxed font-sans" {...props} />
+                        ),
+                        strong: ({node, ...props}) => (
+                          <strong className="font-extrabold text-white bg-zinc-900 px-1 py-0.5 rounded" {...props} />
+                        ),
+                        code: ({node, ...props}) => (
+                          <code className="bg-zinc-900 text-yellow-400 font-mono text-[10.5px] px-1 py-0.5 rounded border border-zinc-800" {...props} />
+                        )
+                      }}
+                    >
+                      {m.content}
+                    </ReactMarkdown>
+                  </div>
                 </div>
               </motion.div>
             ))}
@@ -210,22 +257,23 @@ ${matchesSummary}`;
           <Input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask about team fatigue, tactical risks..."
-            className="pr-12 bg-zinc-900/50 border-zinc-800 h-12 rounded-xl focus:ring-yellow-500/50 focus:border-yellow-500/50"
+            placeholder="Ask about team fatigue, tactical risks, or any match..."
+            className="pr-12 bg-zinc-900/50 border-zinc-800 h-12 rounded-xl focus:ring-yellow-500/50 focus:border-yellow-500/50 placeholder:text-zinc-600 text-xs"
           />
           <Button 
             type="submit" 
             disabled={loading}
             size="icon" 
-            className="absolute right-1.5 top-1.5 w-9 h-9 bg-yellow-500 hover:bg-yellow-400 text-black rounded-lg"
+            className="absolute right-1.5 top-1.5 w-9 h-9 bg-yellow-500 hover:bg-yellow-400 text-black rounded-lg cursor-pointer transition-all active:scale-95"
           >
             <Send className="w-4 h-4" />
           </Button>
         </form>
-        <p className="text-[10px] text-zinc-600 text-center mt-3 uppercase tracking-widest font-black">
-          Data sync: Real-time Analysis Mode
+        <p className="text-[10px] text-zinc-600 text-center mt-3 uppercase tracking-widest font-black pointer-events-none">
+          Active Node: Regional Aggregation Feed
         </p>
       </div>
     </div>
   );
 }
+

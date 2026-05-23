@@ -67,6 +67,7 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
   const [predictedScore, setPredictedScore] = useState<{ home: number | null, away: number | null }>({ home: null, away: null });
   const [isExpanded, setIsExpanded] = useState(false);
   const [isOddsExpanded, setIsOddsExpanded] = useState(false);
+  const [isReasoningExpanded, setIsReasoningExpanded] = useState(false);
   const [retryCountdown, setRetryCountdown] = useState<number | null>(null);
 
   useEffect(() => {
@@ -277,29 +278,73 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
             {isLive ? (
               <div className="flex flex-col items-center gap-1">
                 <div className="flex items-center gap-3">
-                  <motion.span 
-                    animate={homeChanged ? { 
-                      scale: [1, 1.15, 1],
-                      y: [0, -4, 0],
-                      color: ["#ffffff", "#eab308", "#ffffff"],
-                    } : { scale: 1, y: 0 }}
-                    transition={{ duration: 1, ease: "circOut" }}
-                    className="text-3xl font-black font-mono tracking-tighter text-white"
-                  >
-                    {match.score?.fullTime?.home ?? 0}
-                  </motion.span>
+                  {/* Home Score */}
+                  <div className="relative">
+                    <AnimatePresence mode="popLayout" initial={false}>
+                      <motion.span 
+                        key={match.score?.fullTime?.home}
+                        initial={{ opacity: 0, scale: 0.5 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ 
+                          type: "spring", 
+                          stiffness: 400, 
+                          damping: 10 
+                        }}
+                        className="text-3xl font-black font-mono tracking-tighter text-white block"
+                      >
+                        {match.score?.fullTime?.home ?? 0}
+                      </motion.span>
+                    </AnimatePresence>
+                    {/* Ghost effect for home score update */}
+                    <AnimatePresence>
+                      {homeChanged && (
+                        <motion.span
+                          initial={{ scale: 1, opacity: 1, color: "#22c55e" }}
+                          animate={{ scale: 3, opacity: 0 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 0.8, ease: "easeOut" }}
+                          className="absolute inset-0 text-3xl font-black font-mono tracking-tighter pointer-events-none block text-center"
+                        >
+                          {match.score?.fullTime?.home ?? 0}
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
+                  </div>
+
                   <span className="text-zinc-600 font-bold text-sm">:</span>
-                  <motion.span 
-                    animate={awayChanged ? { 
-                      scale: [1, 1.15, 1],
-                      y: [0, -4, 0],
-                      color: ["#ffffff", "#eab308", "#ffffff"],
-                    } : { scale: 1, y: 0 }}
-                    transition={{ duration: 1, ease: "circOut" }}
-                    className="text-3xl font-black font-mono tracking-tighter text-white"
-                  >
-                    {match.score?.fullTime?.away ?? 0}
-                  </motion.span>
+
+                  {/* Away Score */}
+                  <div className="relative">
+                    <AnimatePresence mode="popLayout" initial={false}>
+                      <motion.span 
+                        key={match.score?.fullTime?.away}
+                        initial={{ opacity: 0, scale: 0.5 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ 
+                          type: "spring", 
+                          stiffness: 400, 
+                          damping: 10 
+                        }}
+                        className="text-3xl font-black font-mono tracking-tighter text-white block"
+                      >
+                        {match.score?.fullTime?.away ?? 0}
+                      </motion.span>
+                    </AnimatePresence>
+                    {/* Ghost effect for away score update */}
+                    <AnimatePresence>
+                      {awayChanged && (
+                        <motion.span
+                          initial={{ scale: 1, opacity: 1, color: "#22c55e" }}
+                          animate={{ scale: 3, opacity: 0 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 0.8, ease: "easeOut" }}
+                          className="absolute inset-0 text-3xl font-black font-mono tracking-tighter pointer-events-none block text-center"
+                        >
+                          {match.score?.fullTime?.away ?? 0}
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="relative flex h-2 w-2">
@@ -465,14 +510,49 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
                   </TabsList>
 
                   <TabsContent value="analysis" className="space-y-4 mt-0">
-                    <div className="p-4 bg-zinc-900/50 backdrop-blur-md rounded-2xl border border-zinc-800/50 group-hover:border-yellow-500/20 transition-colors relative overflow-hidden">
-                      <div className="absolute top-0 right-0 p-2 opacity-5">
-                         <Shield className="w-8 h-8" />
-                      </div>
-                      <p className="text-[11px] text-zinc-400 leading-relaxed font-medium relative z-10">
-                        <span className="text-yellow-500 font-black uppercase mr-2 tracking-widest text-[9px]">Decision Summary:</span>
-                        {analysis.reasoning_summary}
-                      </p>
+                    <div className="bg-zinc-900/50 backdrop-blur-md rounded-2xl border border-zinc-800/50 group-hover:border-yellow-500/20 transition-all relative overflow-hidden">
+                      <button 
+                        onClick={() => setIsReasoningExpanded(!isReasoningExpanded)}
+                        className="w-full p-4 flex items-center justify-between group/audit-btn text-left"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-6 h-6 rounded-lg bg-yellow-500/10 flex items-center justify-center border border-yellow-500/20">
+                            <BrainCircuit className="w-3.5 h-3.5 text-yellow-500" />
+                          </div>
+                          <div>
+                            <span className="text-yellow-500 font-black uppercase tracking-widest text-[9px] block mb-0.5">Tactical Narrative</span>
+                            <span className="text-[10px] text-zinc-500 font-bold uppercase truncate max-w-[180px] block">Neural Logic Chain</span>
+                          </div>
+                        </div>
+                        <div className={cn(
+                          "w-5 h-5 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-400 transition-all",
+                          isReasoningExpanded && "rotate-180 bg-yellow-500 text-black"
+                        )}>
+                          <ChevronDown className="w-3 h-3" />
+                        </div>
+                      </button>
+
+                      <AnimatePresence>
+                        {isReasoningExpanded && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.3, ease: "circOut" }}
+                            className="px-4 pb-4 overflow-hidden"
+                          >
+                            <div className="pt-2 border-t border-zinc-800/50">
+                              <div className="absolute top-0 right-0 p-2 opacity-5 pointer-events-none">
+                                 <Shield className="w-12 h-12" />
+                              </div>
+                              <p className="text-[11px] text-zinc-300 leading-relaxed font-medium relative z-10 font-mono">
+                                <span className="text-zinc-600 mr-2">CALIBRATING:</span>
+                                {analysis.reasoning_summary}
+                              </p>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
 
                     <div className="bg-[#111] p-4 rounded-2xl border border-zinc-900 overflow-hidden relative group/conf transition-all hover:border-zinc-800">
@@ -542,11 +622,58 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
                         <h5 className="text-[10px] font-black uppercase tracking-[0.25em] text-zinc-400">Tactical Risk Audit</h5>
                       </div>
 
-                      <div className="space-y-5">
-                        <div className="relative pl-4 border-l-2 border-red-500/20 group-hover/risk:border-red-500/40 transition-colors">
-                          <div className="flex items-center gap-2 mb-2">
-                            <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)]" />
-                            <p className="text-[9px] font-black uppercase text-zinc-600 tracking-widest">Primary Operational Risk</p>
+                      {prediction?.trap_game_warning && (
+                        <motion.div 
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-start gap-3 relative z-10 overflow-hidden"
+                        >
+                          <div className="absolute top-0 right-0 w-24 h-24 bg-red-500/5 blur-2xl rounded-full -mr-12 -mt-12" />
+                          <div className="bg-red-500 p-1.5 rounded-lg shadow-[0_0_15px_rgba(239,68,68,0.3)]">
+                            <AlertTriangle className="w-4 h-4 text-white" />
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-red-500">Trap Game Detected</span>
+                              <div className="h-[1px] flex-1 bg-red-500/20" />
+                            </div>
+                            <p className="text-[11px] text-zinc-200 font-medium leading-relaxed italic pr-2">
+                              {prediction.trap_game_reason}
+                            </p>
+                          </div>
+                        </motion.div>
+                      )}
+
+                      <div className="space-y-6">
+                        <div className={cn(
+                          "relative pl-4 border-l-2 transition-colors",
+                          risk_assessment.level.toLowerCase() === 'high' ? "border-red-500/40" :
+                          risk_assessment.level.toLowerCase() === 'medium' ? "border-yellow-500/40" :
+                          "border-emerald-500/40"
+                        )}>
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <div className={cn(
+                                "w-1.5 h-1.5 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.5)]",
+                                risk_assessment.level.toLowerCase() === 'high' ? "bg-red-500 animate-pulse shadow-red-500/50" :
+                                risk_assessment.level.toLowerCase() === 'medium' ? "bg-yellow-500 shadow-yellow-500/50" :
+                                "bg-emerald-500 shadow-emerald-500/50"
+                              )} />
+                              <p className="text-[9px] font-black uppercase text-zinc-600 tracking-widest">Primary Operational Risk</p>
+                            </div>
+                            <div className="flex gap-1">
+                               {[1, 2, 3].map((step) => (
+                                 <div 
+                                    key={step} 
+                                    className={cn(
+                                      "w-3 h-1 rounded-full bg-zinc-800",
+                                      risk_assessment.level.toLowerCase() === 'high' && step <= 3 && "bg-red-500",
+                                      risk_assessment.level.toLowerCase() === 'medium' && step <= 2 && "bg-yellow-500",
+                                      risk_assessment.level.toLowerCase() === 'low' && step <= 1 && "bg-emerald-500"
+                                    )} 
+                                 />
+                               ))}
+                            </div>
                           </div>
                           <div className="bg-zinc-900/50 p-3 rounded-xl border border-zinc-800/50">
                             <p className="text-[12px] text-zinc-300 font-medium leading-relaxed italic font-mono uppercase tracking-tight">
@@ -555,14 +682,40 @@ export const PredictionCard: React.FC<PredictionCardProps> = ({
                           </div>
                         </div>
 
-                        <div className="relative pl-4 border-l-2 border-emerald-500/20 group-hover/risk:border-emerald-500/40 transition-colors">
-                          <div className="flex items-center gap-2 mb-2">
-                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
-                            <p className="text-[9px] font-black uppercase text-zinc-600 tracking-widest">Tactical Safety Buffer</p>
+                        <div className={cn(
+                          "relative pl-4 border-l-2 transition-colors",
+                          risk_assessment.level.toLowerCase() === 'high' ? "border-red-500/20" :
+                          risk_assessment.level.toLowerCase() === 'medium' ? "border-yellow-500/20" :
+                          "border-emerald-500/20"
+                        )}>
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <div className={cn(
+                                "w-1.5 h-1.5 rounded-full",
+                                risk_assessment.level.toLowerCase() === 'high' ? "bg-red-500" :
+                                risk_assessment.level.toLowerCase() === 'medium' ? "bg-yellow-500" :
+                                "bg-emerald-500"
+                              )} />
+                              <p className="text-[9px] font-black uppercase text-zinc-600 tracking-widest">Tactical Safety Buffer</p>
+                            </div>
+                            <div className="flex items-center gap-1">
+                               <Shield className={cn(
+                                 "w-3 h-3",
+                                 risk_assessment.level.toLowerCase() === 'high' ? "text-red-500" :
+                                 risk_assessment.level.toLowerCase() === 'medium' ? "text-yellow-500" :
+                                 "text-emerald-500"
+                               )} />
+                               <span className="text-[7px] font-black uppercase text-zinc-700">Audit Status</span>
+                            </div>
                           </div>
-                          <div className="inline-flex items-center gap-3 bg-emerald-500/5 px-4 py-2 rounded-full border border-emerald-500/20">
-                            <Activity className="w-3 h-3 text-emerald-500" />
-                            <p className="text-[13px] text-emerald-400 font-black font-mono tracking-tighter">
+                          <div className={cn(
+                            "inline-flex items-center gap-3 px-4 py-2 rounded-full border bg-zinc-950/50",
+                            risk_assessment.level.toLowerCase() === 'high' ? "border-red-500/20 text-red-400" :
+                            risk_assessment.level.toLowerCase() === 'medium' ? "border-yellow-500/20 text-yellow-400" :
+                            "border-emerald-500/20 text-emerald-400"
+                          )}>
+                            <Activity className="w-3 h-3" />
+                            <p className="text-[13px] font-black font-mono tracking-tighter">
                               {risk_assessment.safety_buffer}
                             </p>
                           </div>

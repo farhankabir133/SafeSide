@@ -8,11 +8,11 @@ import LeaguesIndexPage from './pages/LeaguesIndexPage';
 import LeaguePage from './pages/LeaguePage';
 import TeamPage from './pages/TeamPage';
 import DashboardPage from './pages/DashboardPage';
+import BankrollPage from './pages/BankrollPage';
+import PricingPage from './pages/PricingPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
 // Placeholder Pages
-const BankrollPage = () => <div className="p-24 text-center font-black text-4xl uppercase tracking-tighter">Vault Encryption Active</div>;
-const PricingPage = () => <div className="p-24 text-center font-black text-4xl uppercase tracking-tighter">Procurement Logic Initializing</div>;
 const NotFoundPage = () => <div className="p-24 text-center font-black text-4xl uppercase tracking-tighter">Coordinate Error (404)</div>;
 
 export const router = createBrowserRouter([

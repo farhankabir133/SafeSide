@@ -1,6 +1,6 @@
 import React from 'react';
 import { Target, Zap, Activity } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 
 interface LiveNotificationProps {
@@ -47,14 +47,54 @@ export const LiveNotification: React.FC<LiveNotificationProps> = ({
           <p className="text-sm font-black uppercase tracking-tighter truncate">{homeTeam}</p>
         </div>
         
-        <div className="flex items-center gap-4 bg-zinc-900/50 px-5 py-2 rounded-2xl border border-zinc-800">
-          <span className={cn("text-2xl font-black font-mono", isGoal ? "text-yellow-500" : "text-white")}>
-            {homeScore}
-          </span>
-          <span className="text-zinc-700 font-bold">:</span>
-          <span className={cn("text-2xl font-black font-mono", isGoal ? "text-yellow-500" : "text-white")}>
-            {awayScore}
-          </span>
+        <div className="flex items-center gap-4 bg-zinc-900/50 px-5 py-2 rounded-2xl border border-zinc-800 relative">
+          <div className="relative">
+            <AnimatePresence mode="popLayout" initial={false}>
+              <motion.span 
+                key={homeScore}
+                initial={{ opacity: 0, scale: 0.5 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className={cn("text-2xl font-black font-mono block", isGoal ? "text-yellow-500" : "text-white")}
+              >
+                {homeScore}
+              </motion.span>
+            </AnimatePresence>
+            {isGoal && (
+               <motion.span
+                 initial={{ scale: 1, opacity: 1 }}
+                 animate={{ scale: 3, opacity: 0 }}
+                 transition={{ duration: 0.8, ease: "easeOut" }}
+                 className="absolute inset-0 text-2xl font-black font-mono pointer-events-none text-yellow-500 text-center"
+               >
+                 {homeScore}
+               </motion.span>
+            )}
+          </div>
+
+          <span className="text-zinc-700 font-bold text-sm">:</span>
+
+          <div className="relative">
+            <AnimatePresence mode="popLayout" initial={false}>
+              <motion.span 
+                key={awayScore}
+                initial={{ opacity: 0, scale: 0.5 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className={cn("text-2xl font-black font-mono block", isGoal ? "text-yellow-500" : "text-white")}
+              >
+                {awayScore}
+              </motion.span>
+            </AnimatePresence>
+            {isGoal && (
+               <motion.span
+                 initial={{ scale: 1, opacity: 1 }}
+                 animate={{ scale: 3, opacity: 0 }}
+                 transition={{ duration: 0.8, ease: "easeOut" }}
+                 className="absolute inset-0 text-2xl font-black font-mono pointer-events-none text-yellow-500 text-center"
+               >
+                 {awayScore}
+               </motion.span>
+            )}
+          </div>
         </div>
 
         <div className="flex-1 text-left">
