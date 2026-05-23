@@ -205,23 +205,48 @@ Keep all sentences extremely bite-sized, data-focused, objective, and easy for a
                   <div className="markdown-body space-y-2 text-zinc-300">
                     <ReactMarkdown
                       components={{
-                        h3: ({node, ...props}) => (
-                          <h3 className="text-xs font-black uppercase text-yellow-500 mt-4 mb-2 tracking-wider flex items-center gap-1.5 border-b border-zinc-900 pb-1" {...props} />
-                        ),
+                        h3: ({node, ...props}) => {
+                          const text = String(props.children || '').toUpperCase();
+                          let icon = "⚡";
+                          let color = "text-yellow-500 border-yellow-500/20";
+                          let bg = "bg-yellow-500/5";
+                          if (text.includes("RISK") || text.includes("TRAP")) {
+                            icon = "🛡️";
+                            color = "text-emerald-400 border-emerald-500/20";
+                            bg = "bg-emerald-500/5";
+                          } else if (text.includes("MATH") || text.includes("CONCLU")) {
+                            icon = "🎯";
+                            color = "text-sky-400 border-sky-500/20";
+                            bg = "bg-sky-500/5";
+                          }
+                          return (
+                            <h3 className={cn(
+                              "text-[10.5px] font-black uppercase tracking-wider flex items-center gap-2 border-l-2 pl-3 py-1.5 rounded-r-xl border-t border-r border-b border-zinc-900 my-4 font-sans",
+                              color,
+                              bg
+                            )}>
+                              <span className="text-xs">{icon}</span>
+                              {props.children}
+                            </h3>
+                          );
+                        },
                         p: ({node, ...props}) => (
-                          <p className="text-xs text-zinc-350 leading-relaxed my-1 font-sans" {...props} />
+                          <p className="text-xs text-zinc-400 leading-relaxed my-1 font-sans" {...props} />
                         ),
                         ul: ({node, ...props}) => (
-                          <ul className="list-disc pl-4 space-y-1.5 my-2 text-xs text-zinc-300" {...props} />
+                          <ul className="space-y-1.5 my-2 pl-1" {...props} />
                         ),
                         li: ({node, ...props}) => (
-                          <li className="text-xs text-zinc-300 leading-relaxed font-sans" {...props} />
+                          <li className="text-xs text-zinc-300 leading-relaxed font-sans flex items-start gap-2.5 my-1.5">
+                            <span className="text-yellow-500/50 select-none font-mono mt-0.5">•</span>
+                            <span className="flex-1">{props.children}</span>
+                          </li>
                         ),
                         strong: ({node, ...props}) => (
-                          <strong className="font-extrabold text-white bg-zinc-900 px-1 py-0.5 rounded" {...props} />
+                          <strong className="font-black text-white bg-zinc-900 border border-zinc-800 px-1.5 py-0.5 rounded-lg text-[11px] font-sans mx-0.5" {...props} />
                         ),
                         code: ({node, ...props}) => (
-                          <code className="bg-zinc-900 text-yellow-400 font-mono text-[10.5px] px-1 py-0.5 rounded border border-zinc-800" {...props} />
+                          <code className="bg-black text-yellow-400 font-mono text-[10px] px-1.5 py-1 rounded-md border border-zinc-900 mx-0.5 font-bold" {...props} />
                         )
                       }}
                     >
