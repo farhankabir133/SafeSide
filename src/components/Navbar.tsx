@@ -46,6 +46,10 @@ export const Navbar: React.FC<NavbarProps> = ({ accuracy, leagueCount }) => {
         <div className="hidden lg:flex items-center gap-8">
           <div className="flex items-center gap-6">
             <Link to="/" className="text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-white transition-colors">Home</Link>
+            <Link to="/live-analysis" className="text-[10px] font-black uppercase tracking-widest text-yellow-500 hover:text-yellow-450 transition-colors flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              Live Analysis
+            </Link>
             <Link to="/leagues" className="text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-white transition-colors">Leagues</Link>
             <Link to="/tools/bankroll" className="text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-white transition-colors">Tools</Link>
             <Link to="/pricing" className="text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-white transition-colors">Pricing</Link>

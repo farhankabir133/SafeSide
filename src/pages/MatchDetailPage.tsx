@@ -184,22 +184,30 @@ export default function MatchDetailPage() {
 
     fetchAll();
 
+    const isMatchLive = ['IN_PLAY', 'PAUSED', 'LIVE'].includes(matchDetails?.status);
+    const delay = isMatchLive ? 3000 : 15000;
+
     const interval = setInterval(() => {
-      const isMatchLive = ['IN_PLAY', 'PAUSED', 'LIVE'].includes(matchDetails?.status);
-      
-      // Poll every 10s if live, 60s if not
-      fetch(`/api/matches/${matchId}`).then(r => r.json()).then(data => {
-        if (matchDetails) {
-          const prevScore = `${matchDetails.score?.fullTime?.home}-${matchDetails.score?.fullTime?.away}`;
-          const newScore = `${data.score?.fullTime?.home}-${data.score?.fullTime?.away}`;
-          if (prevScore !== newScore) {
-            setScoreFlash(true);
-            setTimeout(() => setScoreFlash(false), 2000);
-          }
-        }
-        setMatchDetails(data);
-      });
-    }, (['IN_PLAY', 'PAUSED', 'LIVE'].includes(matchDetails?.status)) ? 10000 : 30000);
+      fetch(`/api/matches/${matchId}`)
+        .then(r => {
+          if (!r.ok) throw new Error("Match details API error");
+          return r.json();
+        })
+        .then(data => {
+          setMatchDetails(prev => {
+            if (prev) {
+              const prevScore = `${prev.score?.fullTime?.home ?? 0}-${prev.score?.fullTime?.away ?? 0}`;
+              const newScore = `${data.score?.fullTime?.home ?? 0}-${data.score?.fullTime?.away ?? 0}`;
+              if (prevScore !== newScore) {
+                setScoreFlash(true);
+                setTimeout(() => setScoreFlash(false), 2000);
+              }
+            }
+            return data;
+          });
+        })
+        .catch(err => console.warn("Polling match details error:", err));
+    }, delay);
 
     return () => clearInterval(interval);
   }, [matchId, matchDetails?.status]);

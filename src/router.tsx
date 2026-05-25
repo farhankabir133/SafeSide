@@ -10,6 +10,7 @@ import TeamPage from './pages/TeamPage';
 import DashboardPage from './pages/DashboardPage';
 import BankrollPage from './pages/BankrollPage';
 import PricingPage from './pages/PricingPage';
+import LiveAnalysisPage from './pages/LiveAnalysisPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
 // Placeholder Pages
@@ -34,6 +35,10 @@ export const router = createBrowserRouter([
       { path: '/leagues/:slug', element: <LeaguePage /> },
       { path: '/teams/:id', element: <TeamPage /> },
       { path: '/matches/:id', element: <MatchDetailPage /> },
+      { path: '/live-analysis', element: <LiveAnalysisPage /> },
+      { path: '/live', element: <LiveAnalysisPage /> },
+      { path: '/liveanalysis', element: <LiveAnalysisPage /> },
+      { path: '/matches/live', element: <LiveAnalysisPage /> },
       { 
         path: '/tools/bankroll', 
         element: (

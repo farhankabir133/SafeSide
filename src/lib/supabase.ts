@@ -48,21 +48,32 @@ export const isSupabaseConfigured = (): boolean => {
   }
 };
 
+const createDummyChain = (): any => {
+  const dummy: any = () => dummy;
+  dummy.then = (onfulfilled?: any) => Promise.resolve({ data: null, count: 0, error: null }).then(onfulfilled);
+  return new Proxy(dummy, {
+    get: (target, prop) => {
+      if (prop === 'then') return target.then;
+      return createDummyChain();
+    }
+  });
+};
+
 // For backward compatibility with existing imports if needed, but we should prefer getSupabase()
 export const supabase = {
   from: (table: string) => {
     const client = getSupabase();
-    if (!client) {
-      // Return a dummy object that doesn't crash but does nothing
-      return {
-        select: () => ({ order: () => ({ eq: () => Promise.resolve({ data: null, error: null }) }), eq: () => ({ order: () => Promise.resolve({ data: null, error: null }) }) }),
-        insert: () => Promise.resolve({ data: null, error: null }),
-        update: () => Promise.resolve({ data: null, error: null }),
-      } as any;
-    }
+    if (!client) return createDummyChain();
     return client.from(table);
   },
-  auth: () => getSupabase()?.auth,
+  auth: {
+    getSession: () => Promise.resolve({ data: { session: null }, error: null }),
+    onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+    signInWithPassword: () => Promise.resolve({ data: { user: null, session: null }, error: null }),
+    signUp: () => Promise.resolve({ data: { user: null, session: null }, error: null }),
+    signOut: () => Promise.resolve({ error: null }),
+    signInWithOAuth: () => Promise.resolve({ data: null, error: null })
+  } as any
 };
 
 export interface Prediction {

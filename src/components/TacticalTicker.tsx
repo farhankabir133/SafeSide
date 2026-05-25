@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import { Activity, Zap, TrendingUp, AlertCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { cn } from '@/src/lib/utils';
 
 interface TickerItemProps {
@@ -8,10 +9,17 @@ interface TickerItemProps {
   value: string;
   trend?: 'up' | 'down' | 'neutral';
   color?: string;
+  onClick?: () => void;
 }
 
-const TickerItem: React.FC<TickerItemProps> = ({ label, value, trend, color }) => (
-  <div className="inline-flex items-center gap-2 px-6 border-r border-zinc-800/50 h-full group cursor-default">
+const TickerItem: React.FC<TickerItemProps> = ({ label, value, trend, color, onClick }) => (
+  <div 
+    onClick={onClick}
+    className={cn(
+      "inline-flex items-center gap-2 px-6 border-r border-zinc-800/50 h-full group transition-colors cursor-default",
+      onClick && "hover:bg-zinc-900/50 cursor-pointer"
+    )}
+  >
     <span className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-500 group-hover:text-zinc-400 transition-colors">{label}</span>
     <span className={cn("text-[10px] font-mono font-bold font-black", color || "text-zinc-300")}>{value}</span>
     {trend === 'up' && <TrendingUp className="w-3 h-3 text-emerald-500" />}
@@ -20,6 +28,7 @@ const TickerItem: React.FC<TickerItemProps> = ({ label, value, trend, color }) =
 );
 
 export const TacticalTicker: React.FC<{ matches: any[] }> = ({ matches }) => {
+  const navigate = useNavigate();
   const liveMatches = matches.filter(m => ['IN_PLAY', 'PAUSED', 'LIVE'].includes(m.status));
   
   return (
@@ -45,7 +54,8 @@ export const TacticalTicker: React.FC<{ matches: any[] }> = ({ matches }) => {
                 key={match.id}
                 label={`${match.homeTeam.name} v ${match.awayTeam.name}`}
                 value={`${match.score.fullTime.home}-${match.score.fullTime.away}`}
-                color="text-emerald-500"
+                color="text-emerald-500 font-black"
+                onClick={() => navigate('/live-analysis')}
               />
             ))
           ) : (

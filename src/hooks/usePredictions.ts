@@ -94,15 +94,17 @@ export function usePredictions() {
   }, [matches.length, loading, hasAttemptedInitialAnalysis]);
 
   useEffect(() => {
-    // Set up real-time polling every 10 seconds for live matches, 60s for upcoming
+    // Set up real-time polling every 3 seconds for live matches, 15s for upcoming/finished
+    const liveStatus = ['IN_PLAY', 'PAUSED', 'LIVE'];
+    const hasLiveMatches = matches.some(m => liveStatus.includes(m.status));
+    const delay = hasLiveMatches ? 3000 : 15000;
+
     const interval = setInterval(() => {
-      const liveStatus = ['IN_PLAY', 'PAUSED', 'LIVE'];
-      const hasLiveMatches = matches.some(m => liveStatus.includes(m.status));
       fetchMatches(true); 
-    }, matches.some(m => ['IN_PLAY', 'PAUSED', 'LIVE'].includes(m.status)) ? 10000 : 60000);
+    }, delay);
 
     return () => clearInterval(interval);
-  }, [matches.some(m => ['IN_PLAY', 'PAUSED', 'LIVE'].includes(m.status))]);
+  }, [matches.length, matches.some(m => ['IN_PLAY', 'PAUSED', 'LIVE'].includes(m.status))]);
 
   const fetchStats = async () => {
     if (!isSupabaseConfigured()) return;

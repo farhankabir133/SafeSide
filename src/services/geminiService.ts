@@ -140,12 +140,12 @@ export async function chatAI(message: string, history: any[]): Promise<string> {
 }
 
 export const buildMatchAnalysisPrompt = (matchData: any, h2hData: any, teamStats?: { home: any; away: any }, weather?: any, lineups?: any, oddsData?: any, historicalTrends?: any) => {
-  const h2hSummary = h2hData ? `
+  const h2hSummary = (h2hData && h2hData.aggregates) ? `
 Head-to-Head Stats:
-Total Matches: ${h2hData.aggregates.numberOfMatches}
-${matchData.homeTeam.name} Wins: ${h2hData.aggregates.homeTeam.wins}
-${matchData.awayTeam.name} Wins: ${h2hData.aggregates.awayTeam.wins}
-Recent Results: ${h2hData.matches?.slice(0,3).map((m: any) => `${m.homeTeam.name} ${m.score.fullTime.home}-${m.score.fullTime.away} ${m.awayTeam.name}`).join(', ')}
+Total Matches: ${h2hData.aggregates?.numberOfMatches || 0}
+${matchData.homeTeam?.name || 'Home'} Wins: ${h2hData.aggregates?.homeTeam?.wins || 0}
+${matchData.awayTeam?.name || 'Away'} Wins: ${h2hData.aggregates?.awayTeam?.wins || 0}
+Recent Results: ${h2hData.matches?.slice(0,3).map((m: any) => `${m.homeTeam?.name || ''} ${m.score?.fullTime?.home ?? ''}-${m.score?.fullTime?.away ?? ''} ${m.awayTeam?.name || ''}`).join(', ') || 'None'}
 ` : "Head-to-Head data not available.";
 
   const trendContext = historicalTrends ? `

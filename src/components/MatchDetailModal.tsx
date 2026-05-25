@@ -45,12 +45,14 @@ const StatRow: React.FC<{ label: string; home: number; away: number; unit?: stri
 
 import { VolatilityGauge } from '@/src/components/CommandCenter/VolatilityGauge';
 import { TacticalBriefing } from '@/src/components/CommandCenter/TacticalBriefing';
+import { PossessionHeatmap } from '@/src/components/CommandCenter/PossessionHeatmap';
 
 export const MatchDetailModal: React.FC<MatchDetailModalProps> = ({ isOpen, onClose, matchId }) => {
   const [matchDetails, setMatchDetails] = useState<any>(null);
   const [h2hData, setH2hData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [analysis, setAnalysis] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState<'overview' | 'statistics'>('overview');
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -158,69 +160,110 @@ export const MatchDetailModal: React.FC<MatchDetailModalProps> = ({ isOpen, onCl
                 </div>
               ) : matchDetails ? (
                 <>
+                  {/* Tactical Tab Selecion Node */}
+                  <div className="flex bg-zinc-900/30 p-1.5 rounded-[24px] border border-zinc-900 w-fit">
+                    <button
+                      onClick={() => setActiveTab('overview')}
+                      className={cn(
+                        "text-[10px] font-black uppercase tracking-[0.2em] px-8 py-3.5 rounded-2xl transition-all duration-300",
+                        activeTab === 'overview'
+                          ? "bg-yellow-500 text-black shadow-[0_0_20px_rgba(234,179,8,0.25)]"
+                          : "text-zinc-500 hover:text-white"
+                      )}
+                    >
+                      Overview Node
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('statistics')}
+                      className={cn(
+                        "text-[10px] font-black uppercase tracking-[0.2em] px-8 py-3.5 rounded-2xl transition-all duration-300",
+                        activeTab === 'statistics'
+                          ? "bg-yellow-500 text-black shadow-[0_0_20px_rgba(234,179,8,0.25)]"
+                          : "text-zinc-500 hover:text-white"
+                      )}
+                    >
+                      Statistics Node
+                    </button>
+                  </div>
+
                   {/* Tactical Grid */}
                   <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
                     <div className="lg:col-span-8 space-y-12">
-                      {/* Match HUD */}
-                      <div className="relative bg-zinc-900/10 border border-zinc-800/50 p-12 rounded-[56px] overflow-hidden group">
-                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(234,179,8,0.05),transparent)]" />
-                        <div className="relative z-10">
-                          <div className="flex items-center justify-between gap-10">
-                             <div className="flex-1 flex flex-col items-center gap-6 group/home">
-                                <div className="w-28 h-28 bg-zinc-950 rounded-full flex items-center justify-center border border-zinc-800 shadow-2xl group-hover/home:scale-105 transition-all duration-500 p-5 relative">
-                                   <div className="absolute inset-0 bg-yellow-500/5 rounded-full opacity-0 group-hover/home:opacity-100 transition-opacity" />
-                                   <img src={matchDetails.homeTeam.crest} className="w-full h-full object-contain relative z-10" referrerPolicy="no-referrer" />
-                                </div>
-                                <h3 className="text-2xl font-black uppercase tracking-tighter text-center">{matchDetails.homeTeam.name}</h3>
-                             </div>
+                      {activeTab === 'overview' ? (
+                        <>
+                          {/* Match HUD */}
+                          <div className="relative bg-zinc-900/10 border border-zinc-800/50 p-12 rounded-[56px] overflow-hidden group">
+                            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(234,179,8,0.05),transparent)]" />
+                            <div className="relative z-10">
+                              <div className="flex items-center justify-between gap-10">
+                                 <div className="flex-1 flex flex-col items-center gap-6 group/home">
+                                    <div className="w-28 h-28 bg-zinc-950 rounded-full flex items-center justify-center border border-zinc-800 shadow-2xl group-hover/home:scale-105 transition-all duration-500 p-5 relative">
+                                       <div className="absolute inset-0 bg-yellow-500/5 rounded-full opacity-0 group-hover/home:opacity-100 transition-opacity" />
+                                       <img src={matchDetails.homeTeam.crest} className="w-full h-full object-contain relative z-10" referrerPolicy="no-referrer" />
+                                    </div>
+                                    <h3 className="text-2xl font-black uppercase tracking-tighter text-center">{matchDetails.homeTeam.name}</h3>
+                                 </div>
 
-                             <div className="flex flex-col items-center gap-8">
-                                <div className="flex items-center gap-4">
-                                   <div className="text-7xl font-black font-mono tracking-tighter bg-zinc-950 border border-zinc-900 px-10 py-6 rounded-[32px] shadow-[0_0_50px_rgba(0,0,0,0.5)]">
-                                      {matchDetails.score?.fullTime?.home ?? 0}<span className="text-zinc-800 mx-2">:</span>{matchDetails.score?.fullTime?.away ?? 0}
-                                   </div>
-                                </div>
-                                <Badge className="bg-zinc-900/80 text-zinc-500 font-black border-zinc-800 py-2 px-6 h-auto rounded-full uppercase tracking-[0.3em] text-[10px] backdrop-blur-sm">
-                                   {matchDetails.status}
-                                </Badge>
-                             </div>
+                                 <div className="flex flex-col items-center gap-8">
+                                    <div className="flex items-center gap-4">
+                                       <div className="text-7xl font-black font-mono tracking-tighter bg-zinc-950 border border-zinc-900 px-10 py-6 rounded-[32px] shadow-[0_0_50px_rgba(0,0,0,0.5)]">
+                                          {matchDetails.score?.fullTime?.home ?? 0}<span className="text-zinc-800 mx-2">:</span>{matchDetails.score?.fullTime?.away ?? 0}
+                                       </div>
+                                    </div>
+                                    <Badge className="bg-zinc-900/80 text-zinc-500 font-black border-zinc-800 py-2 px-6 h-auto rounded-full uppercase tracking-[0.3em] text-[10px] backdrop-blur-sm">
+                                       {matchDetails.status}
+                                    </Badge>
+                                 </div>
 
-                             <div className="flex-1 flex flex-col items-center gap-6 group/away">
-                                <div className="w-28 h-28 bg-zinc-950 rounded-full flex items-center justify-center border border-zinc-800 shadow-2xl group-hover/away:scale-105 transition-all duration-500 p-5 relative">
-                                   <div className="absolute inset-0 bg-blue-500/5 rounded-full opacity-0 group-hover/away:opacity-100 transition-opacity" />
-                                   <img src={matchDetails.awayTeam.crest} className="w-full h-full object-contain relative z-10" referrerPolicy="no-referrer" />
-                                </div>
-                                <h3 className="text-2xl font-black uppercase tracking-tighter text-center">{matchDetails.awayTeam.name}</h3>
-                             </div>
+                                 <div className="flex-1 flex flex-col items-center gap-6 group/away">
+                                    <div className="w-28 h-28 bg-zinc-950 rounded-full flex items-center justify-center border border-zinc-800 shadow-2xl group-hover/away:scale-105 transition-all duration-500 p-5 relative">
+                                       <div className="absolute inset-0 bg-blue-500/5 rounded-full opacity-0 group-hover/away:opacity-100 transition-opacity" />
+                                       <img src={matchDetails.awayTeam.crest} className="w-full h-full object-contain relative z-10" referrerPolicy="no-referrer" />
+                                    </div>
+                                    <h3 className="text-2xl font-black uppercase tracking-tighter text-center">{matchDetails.awayTeam.name}</h3>
+                                 </div>
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      </div>
 
-                      {/* Tactical Briefing Deployment */}
-                      {analysis && <TacticalBriefing analysis={analysis} />}
-                      
-                      {/* Metric HUD */}
-                      <div className="space-y-8">
-                        <div className="flex items-center gap-4">
-                           <div className="w-10 h-10 bg-zinc-900 rounded-2xl flex items-center justify-center border border-zinc-800">
-                             <BarChart3 className="w-5 h-5 text-zinc-100" />
-                           </div>
-                           <h3 className="text-xl font-black uppercase tracking-widest leading-none">Operational Metrics</h3>
-                        </div>
-                        {matchDetails.statistics ? (
-                           <div className="grid grid-cols-1 gap-8 bg-zinc-900/10 border border-zinc-900/50 p-12 rounded-[48px]">
-                              <StatRow label="Possession" home={parseInt(matchDetails.statistics.possession?.home || "0")} away={parseInt(matchDetails.statistics.possession?.away || "0")} unit="%" />
-                              <StatRow label="Tactical Shots" home={matchDetails.statistics.shots?.home ?? 0} away={matchDetails.statistics.shots?.away ?? 0} />
-                              <StatRow label="Precision Strikes" home={matchDetails.statistics.shotsOnTarget?.home ?? 0} away={matchDetails.statistics.shotsOnTarget?.away ?? 0} />
-                              <StatRow label="Strategic Corners" home={matchDetails.statistics.corners?.home ?? 0} away={matchDetails.statistics.corners?.away ?? 0} />
-                           </div>
-                        ) : (
-                           <div className="p-24 text-center bg-zinc-950 border-2 border-zinc-900 border-dashed rounded-[48px]">
-                              <Target className="w-12 h-12 text-zinc-800 mx-auto mb-8 opacity-50" />
-                              <p className="text-xs font-black uppercase tracking-[0.3em] text-zinc-600">Metric stream pending fixture initialization.</p>
-                           </div>
-                        )}
-                      </div>
+                          {/* Tactical Briefing Deployment */}
+                          {analysis && <TacticalBriefing analysis={analysis} />}
+                        </>
+                      ) : (
+                        <>
+                          {/* Tactical Possession Heatmap */}
+                          <PossessionHeatmap
+                            matchId={matchId || "default"}
+                            homeTeamName={matchDetails.homeTeam.name}
+                            awayTeamName={matchDetails.awayTeam.name}
+                            homePossession={matchDetails.statistics?.possession?.home ? parseInt(matchDetails.statistics.possession.home) : 50}
+                            awayPossession={matchDetails.statistics?.possession?.away ? parseInt(matchDetails.statistics.possession.away) : 50}
+                          />
+
+                          {/* Metric HUD */}
+                          <div className="space-y-8">
+                            <div className="flex items-center gap-4">
+                               <div className="w-10 h-10 bg-zinc-900 rounded-2xl flex items-center justify-center border border-zinc-800">
+                                 <BarChart3 className="w-5 h-5 text-zinc-100" />
+                               </div>
+                               <h3 className="text-xl font-black uppercase tracking-widest leading-none">Operational Metrics</h3>
+                            </div>
+                            {matchDetails.statistics ? (
+                               <div className="grid grid-cols-1 gap-8 bg-zinc-900/10 border border-zinc-900/50 p-12 rounded-[48px]">
+                                  <StatRow label="Possession" home={parseInt(matchDetails.statistics.possession?.home || "0")} away={parseInt(matchDetails.statistics.possession?.away || "0")} unit="%" />
+                                  <StatRow label="Tactical Shots" home={matchDetails.statistics.shots?.home ?? 0} away={matchDetails.statistics.shots?.away ?? 0} />
+                                  <StatRow label="Precision Strikes" home={matchDetails.statistics.shotsOnTarget?.home ?? 0} away={matchDetails.statistics.shotsOnTarget?.away ?? 0} />
+                                  <StatRow label="Strategic Corners" home={matchDetails.statistics.corners?.home ?? 0} away={matchDetails.statistics.corners?.away ?? 0} />
+                               </div>
+                            ) : (
+                               <div className="p-24 text-center bg-zinc-950 border-2 border-zinc-900 border-dashed rounded-[48px]">
+                                  <Target className="w-12 h-12 text-zinc-800 mx-auto mb-8 opacity-50" />
+                                  <p className="text-xs font-black uppercase tracking-[0.3em] text-zinc-600">Metric stream pending fixture initialization.</p>
+                               </div>
+                            )}
+                          </div>
+                        </>
+                      )}
                     </div>
 
                     <div className="lg:col-span-4 space-y-12">
