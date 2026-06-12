@@ -147,7 +147,7 @@ Add analytics dashboard
 
 Code Catalysts Team
 
-Amal Raj Singh
+Farhan Kabir
 Manasvi Logani
 📜 License
 
@@ -157,13 +157,3 @@ This project is for educational and research purposes.
 
 If you like this project, consider giving it a star ⭐ on GitHub.
 
-
----
-
-If you want, I can also:
-- :contentReference[oaicite:0]{index=0}
-- or :contentReference[oaicite:1]{index=1}
-
----
-
-## 🧱 Project Structure
