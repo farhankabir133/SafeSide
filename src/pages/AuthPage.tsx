@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { supabase } from '@/src/lib/supabase';
+import { getSupabase } from '@/src/lib/supabase';
 import { BrainCircuit, Mail, Lock, LogIn, UserPlus, Github, Chrome, AlertCircle, ArrowLeft } from 'lucide-react';
 import { Button } from '@/src/components/ui/button';
 import { Input } from '@/src/components/ui/input';
@@ -25,6 +25,8 @@ export default function AuthPage() {
     setLoading(true);
     setError(null);
 
+    const supabase = getSupabase();
+
     try {
       if (isLogin) {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -45,6 +47,7 @@ export default function AuthPage() {
   };
 
   const handleOAuth = async (provider: 'google' | 'github') => {
+    const supabase = getSupabase();
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider,

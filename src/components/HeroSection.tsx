@@ -1,23 +1,23 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import {
-  BrainCircuit,
-  Zap,
-  Target,
-  Activity,
-  Shield,
-  TrendingUp,
-  Info,
-  X,
-  ChevronRight,
-  ChevronLeft,
-  Sparkles,
-  Cpu,
-  Check,
-  Shuffle,
-  AlertTriangle,
-  Play,
-  RefreshCw
+import { 
+  BrainCircuit, 
+  Zap, 
+  Target, 
+  Activity, 
+  Shield, 
+  TrendingUp, 
+  Info, 
+  X, 
+  ChevronRight, 
+  ChevronLeft, 
+  Sparkles, 
+  Cpu, 
+  Check, 
+  Shuffle, 
+  AlertTriangle, 
+  Play, 
+  RefreshCw 
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -27,7 +27,7 @@ export const HeroSection: React.FC = () => {
 
   // States for Phase 1 Simulator (Poisson distribution)
   const [selectedPoissonFixture, setSelectedPoissonFixture] = useState<'high_vol' | 'balanced' | 'defensive'>('high_vol');
-
+  
   // States for Phase 2 (Neural Risk Scan)
   const [isScanning, setIsScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
@@ -176,15 +176,15 @@ export const HeroSection: React.FC = () => {
   const calcKellyMetric = () => {
     const p = kellyProbability / 100;
     const b = kellyOdds - 1; // Decimal odds to fractional
-
+    
     if (b <= 0) return { ev: 0, rawKelly: 0, safeKelly: 0, stakeCash: 0, hasEdge: false };
-
+    
     const ev = (p * kellyOdds) - 1;
     const hasEdge = ev > 0;
-
+    
     // Raw Kelly = (p * (b + 1) - 1) / b
     const rawKelly = (p * (b + 1) - 1) / b;
-
+    
     // We utilize a standard 0.2 Fraction to keep drawdowns safe!
     const multiplier = 0.2;
     const safeKelly = Math.max(0, rawKelly * multiplier);
@@ -204,7 +204,7 @@ export const HeroSection: React.FC = () => {
     // Basic dynamic weights
     let homeWeight = 45 + (liveHomeMomentum - 50) * 0.5 + (liveHomeScore - liveAwayScore) * 20;
     let awayWeight = 30 + (50 - liveHomeMomentum) * 0.5 + (liveAwayScore - liveHomeScore) * 20;
-
+    
     if (hasHomeRedCard) {
       homeWeight -= 18;
       awayWeight += 10;
@@ -237,11 +237,11 @@ export const HeroSection: React.FC = () => {
         <svg className="absolute w-full h-full" xmlns="http://www.w3.org/2000/svg">
           <defs>
             <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
+              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="1"/>
             </pattern>
           </defs>
           <rect width="100%" height="100%" fill="url(#grid)" />
-
+          
           {/* Animated Connecting Lines */}
           <motion.path
             d="M 100 100 L 300 400 L 600 200 L 900 500"
@@ -263,23 +263,23 @@ export const HeroSection: React.FC = () => {
           />
         </svg>
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(204,255,0,0.05),transparent_70%)]" />
-
+        
         {/* Animated Particles/Nodes */}
         {Array.from({ length: 20 }).map((_, i) => (
           <motion.div
             key={i}
             className="absolute h-1 w-1 rounded-full bg-yellow-500/20"
-            initial={{
-              x: Math.random() * 100 + "%",
+            initial={{ 
+              x: Math.random() * 100 + "%", 
               y: Math.random() * 100 + "%",
-              opacity: 0
+              opacity: 0 
             }}
-            animate={{
+            animate={{ 
               y: ["-10%", "110%"],
               opacity: [0, 1, 0]
             }}
-            transition={{
-              duration: Math.random() * 10 + 5,
+            transition={{ 
+              duration: Math.random() * 10 + 5, 
               repeat: Infinity,
               ease: "linear",
               delay: Math.random() * 5
@@ -301,7 +301,7 @@ export const HeroSection: React.FC = () => {
             </div>
 
             <h1 className="text-5xl md:text-7xl lg:text-8xl font-black uppercase tracking-tighter leading-[0.85] text-white overflow-hidden animate-pulse-intensity">
-              <motion.span
+              <motion.span 
                 initial={{ y: "100%" }}
                 animate={{ y: 0 }}
                 transition={{ duration: 0.8, delay: 0.2 }}
@@ -309,7 +309,7 @@ export const HeroSection: React.FC = () => {
               >
                 Tactical
               </motion.span>
-              <motion.span
+              <motion.span 
                 initial={{ y: "100%" }}
                 animate={{ y: 0 }}
                 transition={{ duration: 0.8, delay: 0.3 }}
@@ -319,7 +319,7 @@ export const HeroSection: React.FC = () => {
               </motion.span>
             </h1>
 
-            <motion.p
+            <motion.p 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.8, delay: 0.6 }}
@@ -328,13 +328,13 @@ export const HeroSection: React.FC = () => {
               Transform raw match data into high-probability tactical insights using our cross-verified POISSON and Neural Node prediction engine.
             </motion.p>
 
-            <motion.div
+            <motion.div 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 0.8 }}
               className="mt-10 flex flex-wrap gap-4"
             >
-              <button
+              <button 
                 id="btn-initialize-scan"
                 onClick={handleInitializeScan}
                 className="bg-white text-black px-8 py-4 rounded-full font-black uppercase text-sm flex items-center gap-3 hover:bg-yellow-500 transition-all hover:scale-105 active:scale-95 group cursor-pointer"
@@ -342,7 +342,7 @@ export const HeroSection: React.FC = () => {
                 Initialize Scan
                 <Zap className="w-4 h-4 group-hover:fill-current" />
               </button>
-              <button
+              <button 
                 id="btn-how-it-works"
                 onClick={() => {
                   setActiveStep(1);
@@ -365,7 +365,7 @@ export const HeroSection: React.FC = () => {
             {/* Visual Tactical HUD */}
             <div className="relative aspect-square max-w-md mx-auto">
               {/* Outer Ring */}
-              <motion.div
+              <motion.div 
                 animate={{ rotate: 360 }}
                 transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
                 className="absolute inset-0 border-2 border-dashed border-zinc-800 rounded-full"
@@ -375,17 +375,17 @@ export const HeroSection: React.FC = () => {
                 <div className="grid grid-cols-3 gap-4 p-8 w-full h-full opacity-60">
                   {Array.from({ length: 9 }).map((_, i) => (
                     <div key={i} className="border border-zinc-900 rounded-lg flex items-center justify-center">
-                      <div className="w-1 h-1 rounded-full bg-zinc-800" />
+                       <div className="w-1 h-1 rounded-full bg-zinc-800" />
                     </div>
                   ))}
                 </div>
-
+                
                 {/* Tactical Stats Matrix */}
                 <div className="absolute inset-0 flex flex-col items-center justify-center p-8">
                   <div className="w-24 h-24 rounded-full bg-yellow-500 flex items-center justify-center shadow-[0_0_50px_rgba(234,179,8,0.3)] mb-6">
                     <BrainCircuit className="w-12 h-12 text-black animate-pulse" />
                   </div>
-
+                  
                   <div className="grid grid-cols-2 gap-x-8 gap-y-4 w-full">
                     <StatItem icon={Target} label="Accuracy" value="94.2%" color="text-yellow-500" />
                     <StatItem icon={Activity} label="Live Nodes" value="2,841" color="text-emerald-500" />
@@ -395,7 +395,7 @@ export const HeroSection: React.FC = () => {
                 </div>
 
                 {/* Scanning Line */}
-                <motion.div
+                <motion.div 
                   animate={{ y: ["-100%", "200%"] }}
                   transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
                   className="absolute top-0 left-0 right-0 h-1 bg-yellow-500/30 blur-sm z-20"
@@ -410,7 +410,7 @@ export const HeroSection: React.FC = () => {
       <AnimatePresence>
         {isHowItWorksOpen && (
           <div className="fixed inset-0 z-[600] flex items-center justify-center p-4 bg-black/85 backdrop-blur-xl overflow-y-auto">
-            <motion.div
+            <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 30 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 30 }}
@@ -418,7 +418,7 @@ export const HeroSection: React.FC = () => {
               className="relative w-full max-w-5xl bg-zinc-950 border border-zinc-800 rounded-[32px] shadow-2xl overflow-hidden my-8"
             >
               {/* Close Button */}
-              <button
+              <button 
                 id="btn-close-explain-modal"
                 onClick={() => setIsHowItWorksOpen(false)}
                 className="absolute top-6 right-6 p-2 rounded-full bg-zinc-900 text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors z-[100] cursor-pointer"
@@ -451,8 +451,8 @@ export const HeroSection: React.FC = () => {
                       onClick={() => setActiveStep(step.id)}
                       className={cn(
                         "text-left p-4 rounded-2xl border transition-all relative text-ellipsis overflow-hidden duration-300 cursor-pointer",
-                        activeStep === step.id
-                          ? "bg-zinc-900 border-yellow-500/30 shadow-lg text-white"
+                        activeStep === step.id 
+                          ? "bg-zinc-900 border-yellow-500/30 shadow-lg text-white" 
                           : "bg-zinc-950/40 border-zinc-900/60 text-zinc-400 hover:border-zinc-800"
                       )}
                     >
@@ -471,11 +471,11 @@ export const HeroSection: React.FC = () => {
                       </div>
                       <h4 className="text-[11px] font-black uppercase text-white truncate pointer-events-none">{step.name}</h4>
                       <p className="text-[9.5px] font-medium text-zinc-500 pointer-events-none truncate">{step.desc}</p>
-
+                      
                       {activeStep === step.id && (
-                        <motion.div
+                        <motion.div 
                           layoutId="active-step-bar"
-                          className="absolute bottom-0 left-0 right-0 h-[2px] bg-yellow-500"
+                          className="absolute bottom-0 left-0 right-0 h-[2px] bg-yellow-500" 
                         />
                       )}
                     </button>
@@ -485,7 +485,7 @@ export const HeroSection: React.FC = () => {
 
               {/* Main Explainer Component Content */}
               <div className="p-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start min-h-[460px]">
-
+                
                 {/* Left Side: Explanatory text and technical highlights */}
                 <div className="lg:col-span-5 space-y-6">
                   {activeStep === 0 && (
@@ -499,7 +499,7 @@ export const HeroSection: React.FC = () => {
                       <p className="text-zinc-400 text-xs leading-relaxed font-sans">
                         Our intelligence pipeline is conducting a decentralized, high-fidelity scan of upcoming fixtures using the raw Opta, Betfair, and SportsRadar API data endpoints.
                       </p>
-
+                      
                       <div className="space-y-3 bg-zinc-900/40 p-4 rounded-2xl border border-zinc-900">
                         <div className="flex items-center gap-3">
                           <div className={cn("w-2 h-2 rounded-full", globalScanCompleted ? "bg-emerald-500" : "bg-yellow-500 animate-pulse")} />
@@ -621,7 +621,7 @@ export const HeroSection: React.FC = () => {
 
                 {/* Right Side: THE INTERACTIVE SIMULATION ZONE */}
                 <div className="lg:col-span-7 bg-zinc-950 border border-zinc-900 rounded-[24px] p-6 relative overflow-hidden min-h-[440px] flex flex-col justify-between">
-
+                  
                   {/* Step 0 Active Scan Terminal */}
                   {activeStep === 0 && (
                     <div className="space-y-4 h-full flex flex-col justify-between">
@@ -632,19 +632,19 @@ export const HeroSection: React.FC = () => {
                             {isScanningGlobal ? "SCANNING COGNITIVE ARRAY" : "COMPILATION SECURED"}
                           </span>
                         </div>
-
+                        
                         {/* High Tech Animated Progress Rings */}
                         <div className="flex items-center gap-6 bg-zinc-900/30 p-4 rounded-2xl border border-zinc-900">
                           <div className="relative w-16 h-16 flex items-center justify-center shrink-0">
                             <svg className="w-full h-full transform -rotate-90">
                               <circle cx="32" cy="32" r="28" stroke="rgba(255,255,255,0.02)" strokeWidth="3" fill="none" />
-                              <motion.circle
-                                cx="32"
-                                cy="32"
-                                r="28"
-                                stroke="#eab308"
-                                strokeWidth="3"
-                                fill="none"
+                              <motion.circle 
+                                cx="32" 
+                                cy="32" 
+                                r="28" 
+                                stroke="#eab308" 
+                                strokeWidth="3" 
+                                fill="none" 
                                 strokeDasharray={176}
                                 strokeDashoffset={176 - (176 * globalScanProgress) / 100}
                                 transition={{ duration: 0.2 }}
@@ -713,7 +713,7 @@ export const HeroSection: React.FC = () => {
                           <span className="text-[10px] font-mono text-yellow-500 uppercase font-black">Live Computed Weights</span>
                         </div>
                         <p className="text-zinc-400 text-xs mb-4">Toggle target fixture parameters to see how Poisson goal matrices shift based on computed squad properties:</p>
-
+                        
                         {/* Interactive Selection */}
                         <div className="grid grid-cols-3 gap-2 mb-6">
                           {[
@@ -726,8 +726,8 @@ export const HeroSection: React.FC = () => {
                               onClick={() => setSelectedPoissonFixture(fix.id as any)}
                               className={cn(
                                 "p-3 rounded-xl border text-center transition-all cursor-pointer",
-                                selectedPoissonFixture === fix.id
-                                  ? "bg-zinc-900 border-yellow-500 text-yellow-500 shadow"
+                                selectedPoissonFixture === fix.id 
+                                  ? "bg-zinc-900 border-yellow-500 text-yellow-500 shadow" 
                                   : "bg-zinc-900/40 border-zinc-900 text-zinc-400 hover:text-white hover:border-zinc-800"
                               )}
                             >
@@ -756,8 +756,8 @@ export const HeroSection: React.FC = () => {
                               {row.map((val, cIdx) => {
                                 const roundedVal = Math.round(val * 100);
                                 return (
-                                  <div
-                                    key={cIdx}
+                                  <div 
+                                    key={cIdx} 
                                     className="p-2.5 rounded-lg text-center flex flex-col items-center justify-center font-mono transition-all duration-300"
                                     style={{
                                       backgroundColor: `rgba(234, 179, 8, ${val * 1.8})`,
@@ -794,7 +794,7 @@ export const HeroSection: React.FC = () => {
                           <span className="text-[10px] font-mono text-emerald-400 uppercase font-black">Diagnostic Core ready</span>
                         </div>
                         <p className="text-zinc-400 text-xs">Run a customized intelligence audit sequence to scan historical and structural friction vectors:</p>
-
+                        
                         {/* Start Scan Button */}
                         <div className="flex justify-center py-2">
                           <button
@@ -824,7 +824,7 @@ export const HeroSection: React.FC = () => {
                         {/* Progress Bar */}
                         {isScanning && (
                           <div className="w-full bg-zinc-900 rounded-full h-1.5 overflow-hidden border border-zinc-800">
-                            <motion.div
+                            <motion.div 
                               className="bg-emerald-500 h-full"
                               initial={{ width: 0 }}
                               animate={{ width: `${scanProgress}%` }}
@@ -850,7 +850,7 @@ export const HeroSection: React.FC = () => {
 
                       {/* Diagnostic Outcome Overlay */}
                       {scanResult && (
-                        <motion.div
+                        <motion.div 
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
                           className="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl flex gap-3 text-xs leading-relaxed"
@@ -871,7 +871,7 @@ export const HeroSection: React.FC = () => {
                           <span className="text-[10px] font-mono text-sky-400 uppercase font-black">Fractional Factor 0.2x</span>
                         </div>
                         <p className="text-zinc-400 text-xs">Simulate expected parameters to check the risk-guarded fractional staking outcomes:</p>
-
+                        
                         {/* Target Sliders */}
                         <div className="space-y-3">
                           <div className="flex flex-col gap-1.5">
@@ -879,7 +879,7 @@ export const HeroSection: React.FC = () => {
                               <span className="text-zinc-400 font-bold uppercase">Estimated Win Probability</span>
                               <span className="text-white font-black">{kellyProbability}%</span>
                             </div>
-                            <input
+                            <input 
                               type="range"
                               min="20"
                               max="90"
@@ -894,7 +894,7 @@ export const HeroSection: React.FC = () => {
                               <span className="text-zinc-400 font-bold uppercase">Market Available Odds</span>
                               <span className="text-white font-black">{kellyOdds.toFixed(2)} decimal</span>
                             </div>
-                            <input
+                            <input 
                               type="range"
                               min="1.20"
                               max="5.00"
@@ -910,7 +910,7 @@ export const HeroSection: React.FC = () => {
                               <span className="text-zinc-400 font-bold uppercase">Total User Vault Capital</span>
                               <span className="text-white font-black">${kellyBankroll.toLocaleString()}</span>
                             </div>
-                            <input
+                            <input 
                               type="range"
                               min="1000"
                               max="50000"
@@ -978,7 +978,7 @@ export const HeroSection: React.FC = () => {
                             <span className="text-[10px] font-mono font-black text-zinc-500 uppercase">HOME POWER</span>
                             <span className="text-sm font-black text-white mt-1">H. FC</span>
                           </div>
-
+                          
                           <div className="flex flex-col items-center gap-1">
                             <span className="bg-red-500/20 text-red-500 border border-red-500/20 font-mono text-[9px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider animate-pulse">live {liveMinute}'</span>
                             <span className="text-3xl font-black font-mono text-yellow-500">{liveHomeScore} - {liveAwayScore}</span>
@@ -1034,7 +1034,7 @@ export const HeroSection: React.FC = () => {
                             <span className="text-zinc-400 font-bold uppercase">Attack Momentum Split</span>
                             <span className="text-purple-400 font-black">Home {liveHomeMomentum}% / Away {100 - liveHomeMomentum}%</span>
                           </div>
-                          <input
+                          <input 
                             type="range"
                             min="20"
                             max="80"
@@ -1049,20 +1049,20 @@ export const HeroSection: React.FC = () => {
                       <div className="space-y-2 mt-4">
                         <span className="text-[9px] font-mono text-zinc-600 uppercase font-black">Computed Win/Draw/Away Probabilities:</span>
                         <div className="w-full h-7 bg-zinc-900 rounded-full overflow-hidden flex font-mono text-[9px] font-black text-center text-zinc-950">
-                          <div
-                            style={{ width: `${liveProbs.home}%` }}
+                          <div 
+                            style={{ width: `${liveProbs.home}%` }} 
                             className="bg-yellow-500 flex items-center justify-center transition-all duration-300"
                           >
                             {liveProbs.home > 15 && `HOME ${liveProbs.home}%`}
                           </div>
-                          <div
-                            style={{ width: `${liveProbs.draw}%` }}
+                          <div 
+                            style={{ width: `${liveProbs.draw}%` }} 
                             className="bg-zinc-450 text-white flex items-center justify-center transition-all duration-300"
                           >
                             {liveProbs.draw > 15 && `DRAW ${liveProbs.draw}%`}
                           </div>
-                          <div
-                            style={{ width: `${liveProbs.away}%` }}
+                          <div 
+                            style={{ width: `${liveProbs.away}%` }} 
                             className="bg-purple-500 text-white flex items-center justify-center transition-all duration-300"
                           >
                             {liveProbs.away > 15 && `AWAY ${liveProbs.away}%`}
@@ -1083,8 +1083,8 @@ export const HeroSection: React.FC = () => {
                       disabled={activeStep === 0}
                       className={cn(
                         "px-4 py-2 rounded-xl text-xs font-bold uppercase transition-all flex items-center gap-1 cursor-pointer",
-                        activeStep === 0
-                          ? "text-zinc-700 bg-transparent cursor-not-allowed"
+                        activeStep === 0 
+                          ? "text-zinc-700 bg-transparent cursor-not-allowed" 
                           : "text-zinc-400 hover:text-white bg-zinc-900 hover:bg-zinc-800"
                       )}
                     >

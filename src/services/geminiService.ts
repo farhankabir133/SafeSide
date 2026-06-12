@@ -286,16 +286,34 @@ Output Schema (Strict JSON):
 
 export async function analyzeMatch(matchData: any, h2hData: any, teamStats?: { home: any; away: any }, weather?: any, lineups?: any, oddsData?: any, historicalTrends?: any): Promise<MatchAnalysis> {
   const prompt = buildMatchAnalysisPrompt(matchData, h2hData, teamStats, weather, lineups, oddsData, historicalTrends);
+  const matchId = matchData?.id ? parseInt(String(matchData.id)) : null;
 
   const response = await fetch("/api/analyze", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt })
+    body: JSON.stringify({ prompt, matchId })
   });
 
   if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(JSON.stringify(errorData));
+    let errorMsg = "API request failed with status: " + response.status;
+    const contentType = response.headers.get("content-type");
+    if (contentType && contentType.includes("application/json")) {
+      try {
+        const errorData = await response.json();
+        errorMsg = JSON.stringify(errorData);
+      } catch (e) {}
+    } else {
+      try {
+        const errorText = await response.text();
+        errorMsg = errorText.slice(0, 200);
+      } catch (e) {}
+    }
+    throw new Error(errorMsg);
+  }
+
+  const contentType = response.headers.get("content-type");
+  if (!contentType || !contentType.includes("application/json")) {
+    throw new Error("Invalid response format: Expected JSON but received HTML/Plaintext.");
   }
 
   return await response.json() as MatchAnalysis;

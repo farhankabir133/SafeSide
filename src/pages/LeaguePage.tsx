@@ -54,10 +54,14 @@ export default function LeaguePage() {
     setLoadingStandings(true);
     try {
       const res = await fetch(`/api/leagues/${league.id}/standings`);
+      const contentType = res.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        throw new Error("Expected JSON response but received invalid payload.");
+      }
       const data = await res.json();
       setStandings(data.standings?.[0]?.table || []);
     } catch (e) {
-      console.error("Failed to fetch standings");
+      console.error("Failed to fetch standings:", e);
     } finally {
       setLoadingStandings(false);
     }
@@ -68,10 +72,14 @@ export default function LeaguePage() {
     setLoadingScorers(true);
     try {
       const res = await fetch(`/api/leagues/${league.id}/scorers`);
+      const contentType = res.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        throw new Error("Expected JSON response but received invalid payload.");
+      }
       const data = await res.json();
       setScorers(data.scorers || []);
     } catch (e) {
-      console.error("Failed to fetch scorers");
+      console.error("Failed to fetch scorers:", e);
     } finally {
       setLoadingScorers(false);
     }

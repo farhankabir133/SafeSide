@@ -57,6 +57,7 @@ export function usePredictions() {
   }, [user]); // Re-fetch when user logs in/out
 
   const fetchPredictionsFromDb = async () => {
+    if (!isSupabaseConfigured()) return;
     try {
       const { data, error } = await supabase
         .from('predictions')
@@ -106,6 +107,7 @@ export function usePredictions() {
   }, [matches.length, matches.some(m => ['IN_PLAY', 'PAUSED', 'LIVE'].includes(m.status))]);
 
   const fetchStats = async () => {
+    if (!isSupabaseConfigured()) return;
     try {
       const { data, count, error } = await supabase
         .from('predictions')
@@ -136,6 +138,19 @@ export function usePredictions() {
     try {
       if (!silent) setLoading(true);
       const res = await fetch('/api/matches');
+      
+      const contentType = res.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        let errorTxt = "Neural telemetry unaligned (Expected JSON but received HTML/Plaintext).";
+        try {
+          const bodyTxt = await res.text();
+          if (bodyTxt.includes("NO_DATA_AVAILABLE")) {
+            errorTxt = "Football Data API limits reached. System is verify-locked out.";
+          }
+        } catch (_) {}
+        throw new Error(errorTxt);
+      }
+
       const data = await res.json();
       
       if (data.error) throw new Error(data.error);
@@ -338,6 +353,7 @@ export function usePredictions() {
   };
 
   const fetchHistoricalData = async () => {
+    if (!isSupabaseConfigured()) return;
     try {
       const { data, error } = await supabase
         .from('predictions')

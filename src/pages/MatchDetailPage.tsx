@@ -541,7 +541,7 @@ export default function MatchDetailPage() {
                             ) : (
                               <div className="h-4 bg-zinc-900 rounded-full animate-pulse" />
                             )}
-                            <div className="grid grid-cols-3 gap-6">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
                                <IntelligenceMetric label="AI Confidence" value={analysis ? `${analysis.prediction.confidence_score}/100` : '--'} />
                                <IntelligenceMetric label="Risk Profile" value={analysis?.risk_assessment.level || '--'} />
                                <IntelligenceMetric label="Safe Suggestion" value={analysis?.prediction.safe_side || '--'} />
@@ -2151,7 +2151,7 @@ const MatchDetailSkeleton = () => (
   <div className="max-w-7xl mx-auto px-4 py-12 space-y-12 animate-pulse">
     <div className="h-20 w-48 bg-zinc-900 rounded-xl mb-12" />
     <div className="h-[400px] bg-zinc-900 rounded-[48px] w-full" />
-    <div className="grid grid-cols-4 gap-6">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
       {[1,2,3,4].map(i => <div key={i} className="h-32 bg-zinc-900 rounded-[32px]" />)}
     </div>
     <div className="h-16 bg-zinc-900 rounded-2xl w-full" />

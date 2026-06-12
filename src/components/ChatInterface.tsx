@@ -123,7 +123,7 @@ Keep all sentences extremely bite-sized, data-focused, objective, and easy for a
   };
 
   return (
-    <div className="flex flex-col h-[600px] bg-zinc-950 border border-zinc-900 rounded-3xl overflow-hidden shadow-2xl relative">
+    <div className="flex flex-col h-[500px] sm:h-[600px] max-h-[75vh] sm:max-h-[85vh] bg-zinc-950 border border-zinc-900 rounded-3xl overflow-hidden shadow-2xl relative">
       <div className="p-6 border-b border-zinc-900 bg-zinc-900/20 flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">

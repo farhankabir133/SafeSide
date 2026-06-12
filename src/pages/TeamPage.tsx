@@ -33,10 +33,14 @@ export default function TeamPage() {
   const fetchTeamDetails = async () => {
     try {
       const res = await fetch(`/api/teams/${id}`);
+      const contentType = res.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        throw new Error("Expected JSON response but received invalid payload.");
+      }
       const data = await res.json();
       setTeam(data);
     } catch (e) {
-      console.error("Failed to fetch team details");
+      console.error("Failed to fetch team details:", e);
     } finally {
       setLoading(false);
     }
@@ -45,10 +49,14 @@ export default function TeamPage() {
   const fetchTeamMatches = async () => {
     try {
       const res = await fetch(`/api/teams/${id}/matches?status=SCHEDULED`);
+      const contentType = res.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        throw new Error("Expected JSON response but received invalid payload.");
+      }
       const data = await res.json();
       setFixtures(data.matches || []);
     } catch (e) {
-      console.error("Failed to fetch team matches");
+      console.error("Failed to fetch team matches:", e);
     }
   };
 
