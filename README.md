@@ -1,20 +1,54 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# 🦺 SafeSide – Real-Time PPE Detection & Safety Alert System
 
-# Run and deploy your AI Studio app
+![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)
+![YOLOv8](https://img.shields.io/badge/Model-YOLOv8-green.svg)
+![OpenCV](https://img.shields.io/badge/Computer_Vision-OpenCV-orange.svg)
+![PyTorch](https://img.shields.io/badge/Framework-PyTorch-red.svg)
+![License](https://img.shields.io/badge/License-MIT-lightgrey.svg)
 
-This contains everything you need to run your app locally.
+> **SafeSide is an AI-powered real-time construction site safety monitoring system that detects PPE compliance (helmets & safety vests) using YOLOv8 and triggers instant alerts for violations.**
 
-View your app in AI Studio: https://ai.studio/apps/607e847d-4173-448f-a3a9-37c5a8eea712
+---
 
-## Run Locally
+## 📌 Overview
 
-**Prerequisites:**  Node.js
+Construction sites are high-risk environments where safety compliance is critical.  
+SafeSide leverages computer vision and deep learning to automatically detect whether workers are wearing required PPE and instantly notify supervisors when violations occur.
 
+The system runs on live webcam or video feeds and identifies:
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+- 🪖 Helmet
+- ❌ No Helmet
+- 🦺 Safety Vest
+- ❌ No Safety Vest
+
+When unsafe conditions are detected, an instant alert system (Discord Webhooks) is triggered.
+
+---
+
+## 🚀 Key Features
+
+### 🔍 Real-Time Object Detection
+- Powered by YOLOv8 nano (YOLOv8n)
+- Optimized for low-latency inference on live video feeds
+
+### 🧠 Custom Trained Model
+- Trained on a manually curated PPE dataset
+- Annotated using YOLO format labels
+
+### 📹 Live Monitoring System
+- Webcam-based real-time detection
+- Video file analysis support
+
+### 🚨 Instant Alert System
+- Discord Webhook integration
+- Cooldown system to prevent spam alerts
+
+### 📊 Model Evaluation
+- Confusion matrix analysis
+- Precision-recall curves
+- F1 score evaluation
+
+---
+
+## 🧱 Project Structure
