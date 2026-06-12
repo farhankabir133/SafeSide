@@ -1,105 +1,113 @@
-# 🦺 SafeSide – Real-Time PPE Detection & Safety Alert System
+# 🦺 SafeSide – AI-Based Real-Time PPE Detection & Safety Monitoring System
 
 ![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)
-![YOLOv8](https://img.shields.io/badge/Model-YOLOv8-green.svg)
-![OpenCV](https://img.shields.io/badge/Computer_Vision-OpenCV-orange.svg)
-![PyTorch](https://img.shields.io/badge/Framework-PyTorch-red.svg)
+![YOLOv8](https://img.shields.io/badge/YOLOv8-Ultralytics-green.svg)
+![OpenCV](https://img.shields.io/badge/OpenCV-Computer_Vision-orange.svg)
+![PyTorch](https://img.shields.io/badge/PyTorch-Deep_Learning-red.svg)
+![Status](https://img.shields.io/badge/Status-Active%20Development-brightgreen.svg)
 ![License](https://img.shields.io/badge/License-MIT-lightgrey.svg)
 
-> **SafeSide is an AI-powered real-time construction site safety monitoring system that detects PPE compliance (helmets & safety vests) using YOLOv8 and triggers instant alerts for violations.**
+> **SafeSide is a real-time AI-powered safety monitoring system that detects Personal Protective Equipment (PPE) compliance (helmets & safety vests) using YOLOv8 and triggers instant alerts when violations are detected.**
 
 ---
 
-## 📌 Overview
+## 📌 Project Overview
 
-Construction sites are high-risk environments where safety compliance is critical.  
-SafeSide leverages computer vision and deep learning to automatically detect whether workers are wearing required PPE and instantly notify supervisors when violations occur.
+Construction and industrial environments require strict safety compliance. Manual monitoring is inefficient, error-prone, and costly.
 
-The system runs on live webcam or video feeds and identifies:
+**SafeSide solves this problem using computer vision and deep learning**, enabling automatic detection of safety violations in real time through CCTV/webcam/video feeds.
+
+The system identifies:
 
 - 🪖 Helmet
 - ❌ No Helmet
 - 🦺 Safety Vest
 - ❌ No Safety Vest
 
-When unsafe conditions are detected, an instant alert system (Discord Webhooks) is triggered.
+When violations are detected, the system sends **instant alerts via Discord webhook integration**.
 
 ---
 
 ## 🚀 Key Features
 
-### 🔍 Real-Time Object Detection
-- Powered by YOLOv8 nano (YOLOv8n)
-- Optimized for low-latency inference on live video feeds
+### 🔍 Real-Time PPE Detection
+- Powered by **YOLOv8 (Ultralytics)**
+- Optimized for fast inference on live webcam/video streams
+- Bounding box visualization for detected objects
 
-### 🧠 Custom Trained Model
-- Trained on a manually curated PPE dataset
-- Annotated using YOLO format labels
+### 🧠 Custom-Trained Deep Learning Model
+- Trained on a custom PPE dataset (`Data_CV/`)
+- YOLO-format annotated images
+- Multiple training runs (50 & 85 epochs)
 
-### 📹 Live Monitoring System
-- Webcam-based real-time detection
-- Video file analysis support
+### 📹 Dual Input Support
+- Live webcam detection (`live_feed_alert_system.py`)
+- Video file analysis (`video_alert_system.py`)
 
-### 🚨 Instant Alert System
-- Discord Webhook integration
-- Cooldown system to prevent spam alerts
+### 🚨 Smart Alert System
+- Discord webhook integration for real-time violation alerts
+- Cooldown mechanism to prevent spam notifications
+- Trigger-based safety violation detection logic
 
-### 📊 Model Evaluation
+### 📊 Model Evaluation & Visualization
 - Confusion matrix analysis
-- Precision-recall curves
-- F1 score evaluation
+- Precision–Recall curves
+- Training performance comparison (50 vs 85 epochs)
 
-SafeSide
+---
+
+## 🧱 Project Structure
+SafeSide/
 │
-├── Data_CV/
+├── Data_CV/ # Dataset (YOLO format)
 │ ├── train/
 │ ├── test/
 │ ├── data.yaml
 │
-├── models/
-│ ├── yolov8n.pt
-│ ├── best_50epochs.pt
-│ ├── best_85epochs.pt
+├── models/ # Trained models
+│ ├── yolov8n.pt # Base model
+│ ├── best_50epochs.pt # Training run 1
+│ ├── best_85epochs.pt # Training run 2 (improved)
 │
-├── runs/
+├── runs/ # Inference outputs
 │ ├── video_results/
 │
-├── best_val_results/
+├── best_val_results/ # Evaluation outputs
 │ ├── confusion_matrix.png
 │ ├── PR_curve.png
 │
-├── live_feed_alert_system.py
-├── video_alert_system.py
-├── test.py
+├── live_feed_alert_system.py # Real-time webcam detection + alerts
+├── video_alert_system.py # Video-based detection pipeline
+├── test.py # Model testing script
 ├── requirements.txt
+└── README.md
 
 
 ---
 
-## 🧪 Methodology
+## 🧪 System Workflow
 
-### 1. Dataset Creation
-- Custom dataset of real construction site images
-- Split into training and testing sets
+### 1️⃣ Data Preparation
+- Images collected from real-world construction scenarios
+- Annotated using YOLO labeling format
+- Dataset split into training and testing sets
 
-### 2. Annotation
-- Labeled using MakeSense.ai
-- YOLO format annotations
+### 2️⃣ Model Training
+- Base architecture: **YOLOv8n**
+- Training performed on GPU (Google Colab / local GPU)
+- Experiments conducted:
+  - 50 epochs (baseline)
+  - 85 epochs (improved performance)
 
-### 3. Model Training
-- Base model: YOLOv8n
-- Training experiments:
-  - 50 epochs
-  - 85 epochs
+### 3️⃣ Real-Time Detection Pipeline
+- Frame captured from webcam or video file
+- YOLO model performs inference
+- Bounding boxes drawn for PPE detection
 
-### 4. Real-Time Detection
-- OpenCV-based live video pipeline
-- Frame-by-frame inference
-
-### 5. Alert System
-- Detects safety violations
-- Sends Discord webhook alerts
-- Includes cooldown delay to avoid spam
+### 4️⃣ Safety Alert Logic
+- If "No Helmet" or "No Vest" detected:
+  - Trigger Discord webhook alert
+  - Include cooldown delay (prevents spam)
 
 ---
 
@@ -110,50 +118,74 @@ SafeSide
 - Ultralytics YOLOv8
 - OpenCV
 - NumPy
-- Requests
+- Requests (Webhook API)
+- Google Colab (Training environment)
 
 ---
 
-## ▶️ Installation & Usage
+## ▶️ Installation & Setup
 
 ### 1. Clone Repository
 ```bash
 git clone https://github.com/farhankabir133/SafeSide.git
 cd SafeSide
+
 2. Install Dependencies
 pip install -r requirements.txt
-3. Run Live Detection
+3. Run Live Webcam Detection
 python live_feed_alert_system.py
-4. Run Video Detection
+4. Run Video-Based Detection
 python video_alert_system.py
-🔔 Alert System Workflow
-Capture frame from webcam/video
-Run YOLOv8 inference
-Detect PPE violations
-Trigger Discord webhook alert
-Apply cooldown to prevent spam alerts
-📊 Results
-High accuracy in Helmet detection
-Strong performance on Safety Vest detection
-Minor imbalance in “No Helmet / No Vest” classes
-Best performance achieved at ~85 epochs training
-🔮 Future Improvements
-Improve dataset balance
-Deploy cloud-based dashboard
-Multi-camera monitoring system
-Upgrade to YOLOv8s/m models
-Add analytics dashboard
-👨‍💻 Authors
 
-Code Catalysts Team
 
-Farhan Kabir
-Manasvi Logani
-📜 License
 
-This project is for educational and research purposes.
+## 📊 Model Performance Summary
 
-⭐ Support
+- 🪖 Strong performance in Helmet detection  
+- 🦺 High accuracy in Vest detection  
+- ⚠️ Slight imbalance in "No Helmet / No Vest" classes  
+- 📈 Best performance observed after extended training (85 epochs)  
 
-If you like this project, consider giving it a star ⭐ on GitHub.
+---
 
+## 🚨 Alert System Design
+
+- Capture frame from input stream  
+- Run YOLOv8 inference  
+- Detect PPE violation classes  
+- Trigger Discord webhook alert  
+- Apply cooldown timer (anti-spam mechanism)  
+
+---
+
+## 🔮 Future Improvements
+
+- 📊 Improve dataset balance (especially violation classes)  
+- 🌐 Web dashboard for real-time monitoring  
+- 📡 Multi-camera support for large construction sites  
+- 🧠 Upgrade to YOLOv8s / YOLOv8m for higher accuracy  
+- 📈 Add analytics dashboard (daily safety reports)  
+
+---
+
+## 👨‍💻 Authors
+
+**Code Catalysts Team**
+- Amal Raj Singh  
+- Manasvi Logani  
+
+---
+
+## 📜 License
+
+This project is released for educational and research purposes.
+
+---
+
+## ⭐ Support
+
+If you find this project useful:
+
+- Give it a ⭐ on GitHub  
+- Fork it and improve it  
+- Share it with the AI/ML community  
