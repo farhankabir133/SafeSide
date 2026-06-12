@@ -57,7 +57,6 @@ export function usePredictions() {
   }, [user]); // Re-fetch when user logs in/out
 
   const fetchPredictionsFromDb = async () => {
-    if (!isSupabaseConfigured()) return;
     try {
       const { data, error } = await supabase
         .from('predictions')
@@ -107,7 +106,6 @@ export function usePredictions() {
   }, [matches.length, matches.some(m => ['IN_PLAY', 'PAUSED', 'LIVE'].includes(m.status))]);
 
   const fetchStats = async () => {
-    if (!isSupabaseConfigured()) return;
     try {
       const { data, count, error } = await supabase
         .from('predictions')
@@ -340,7 +338,6 @@ export function usePredictions() {
   };
 
   const fetchHistoricalData = async () => {
-    if (!isSupabaseConfigured()) return;
     try {
       const { data, error } = await supabase
         .from('predictions')
