@@ -306,7 +306,7 @@ Output in markdown.`;
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.02 }}
                 >
-                  <Card className="bg-zinc-950 border-zinc-900 p-5 rounded-2xl hover:border-zinc-700 transition-all group flex items-center justify-between">
+                   <Card className="bg-zinc-950 border-zinc-900 p-5 rounded-2xl hover:border-zinc-700 hover:bg-zinc-900/50 transition-all group flex items-center justify-between">
                     <div className="flex items-center gap-4">
                       <div className="w-10 h-10 bg-zinc-900 rounded-xl flex items-center justify-center border border-zinc-800 text-zinc-700 font-mono text-xs group-hover:border-yellow-500/50 group-hover:text-yellow-500 transition-colors">
                         {player.shirtNumber || '#'}
@@ -440,7 +440,7 @@ const TeamStatRow = ({ label, value, unit = '', max = 100, color = 'bg-emerald-5
 };
 
 const QuickPerformanceCard = ({ label, value, sub, icon: Icon, accent }: any) => (
-  <Card className="bg-zinc-950 border-zinc-900 p-6 rounded-[32px] flex flex-col gap-4 group hover:border-zinc-700 transition-all">
+  <Card className="bg-zinc-950 border-zinc-900 p-6 rounded-[32px] flex flex-col gap-4 group hover:border-zinc-700 hover:bg-zinc-900/50 transition-all">
     <div className="flex items-center justify-between">
       <div className="bg-zinc-900 p-2 rounded-xl border border-zinc-800 group-hover:border-zinc-700 transition-colors">
         <Icon className={cn("w-5 h-5", accent)} />

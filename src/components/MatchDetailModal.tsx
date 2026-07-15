@@ -1,5 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { Spotlight } from '@/src/components/motion/Spotlight';
+import { Magnetic } from '@/src/components/motion/Magnetic';
+import { useMotionPrefs } from '@/src/components/motion/MotionProvider';
+import { spring } from '@/src/lib/motion';
 import { useNavigate, Link } from 'react-router-dom';
 import { X, MapPin, User, Trophy, Calendar, Info, Users, History, Activity, BarChart3, Target, ShieldAlert, ExternalLink, BrainCircuit } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -102,6 +106,7 @@ export const MatchDetailModal: React.FC<MatchDetailModalProps> = ({ isOpen, onCl
   };
 
   const navigate = useNavigate();
+  const { effective } = useMotionPrefs();
 
   if (!isOpen) return null;
 
@@ -122,6 +127,7 @@ export const MatchDetailModal: React.FC<MatchDetailModalProps> = ({ isOpen, onCl
            initial={{ opacity: 0, scale: 0.95, y: 40 }}
            animate={{ opacity: 1, scale: 1, y: 0 }}
            exit={{ opacity: 0, scale: 0.95, y: 40 }}
+           transition={effective === "full" ? spring.interactive : { duration: 0.2 }}
            className="relative w-full max-w-6xl bg-zinc-950 border border-zinc-900 rounded-[56px] shadow-[0_0_100px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col max-h-[90vh]"
         >
           {/* Header */}
@@ -199,16 +205,16 @@ export const MatchDetailModal: React.FC<MatchDetailModalProps> = ({ isOpen, onCl
                                  <div className="flex-1 flex flex-col items-center gap-6 group/home">
                                     <div className="w-28 h-28 bg-zinc-950 rounded-full flex items-center justify-center border border-zinc-800 shadow-2xl group-hover/home:scale-105 transition-all duration-500 p-5 relative">
                                        <div className="absolute inset-0 bg-yellow-500/5 rounded-full opacity-0 group-hover/home:opacity-100 transition-opacity" />
-                                       <img src={matchDetails.homeTeam.crest} className="w-full h-full object-contain relative z-10" referrerPolicy="no-referrer" />
+                                        <motion.img src={matchDetails.homeTeam.crest} loading="lazy" layoutId={`hub-crest-home-${matchId}`} className="w-full h-full object-contain relative z-10" referrerPolicy="no-referrer" />
                                     </div>
                                     <h3 className="text-2xl font-black uppercase tracking-tighter text-center">{matchDetails.homeTeam.name}</h3>
                                  </div>
 
                                  <div className="flex flex-col items-center gap-8">
                                     <div className="flex items-center gap-4">
-                                       <div className="text-7xl font-black font-mono tracking-tighter bg-zinc-950 border border-zinc-900 px-10 py-6 rounded-[32px] shadow-[0_0_50px_rgba(0,0,0,0.5)]">
-                                          {matchDetails.score?.fullTime?.home ?? 0}<span className="text-zinc-800 mx-2">:</span>{matchDetails.score?.fullTime?.away ?? 0}
-                                       </div>
+                                        <motion.div layoutId={`hub-score-${matchId}`} className="text-7xl font-black font-mono tracking-tighter bg-zinc-950 border border-zinc-900 px-10 py-6 rounded-[32px] shadow-[0_0_50px_rgba(0,0,0,0.5)]">
+                                           {matchDetails.score?.fullTime?.home ?? 0}<span className="text-zinc-800 mx-2">:</span>{matchDetails.score?.fullTime?.away ?? 0}
+                                        </motion.div>
                                     </div>
                                     <Badge className="bg-zinc-900/80 text-zinc-500 font-black border-zinc-800 py-2 px-6 h-auto rounded-full uppercase tracking-[0.3em] text-[10px] backdrop-blur-sm">
                                        {matchDetails.status}
@@ -218,7 +224,7 @@ export const MatchDetailModal: React.FC<MatchDetailModalProps> = ({ isOpen, onCl
                                  <div className="flex-1 flex flex-col items-center gap-6 group/away">
                                     <div className="w-28 h-28 bg-zinc-950 rounded-full flex items-center justify-center border border-zinc-800 shadow-2xl group-hover/away:scale-105 transition-all duration-500 p-5 relative">
                                        <div className="absolute inset-0 bg-blue-500/5 rounded-full opacity-0 group-hover/away:opacity-100 transition-opacity" />
-                                       <img src={matchDetails.awayTeam.crest} className="w-full h-full object-contain relative z-10" referrerPolicy="no-referrer" />
+                                        <motion.img src={matchDetails.awayTeam.crest} loading="lazy" layoutId={`hub-crest-away-${matchId}`} className="w-full h-full object-contain relative z-10" referrerPolicy="no-referrer" />
                                     </div>
                                     <h3 className="text-2xl font-black uppercase tracking-tighter text-center">{matchDetails.awayTeam.name}</h3>
                                  </div>
@@ -248,9 +254,10 @@ export const MatchDetailModal: React.FC<MatchDetailModalProps> = ({ isOpen, onCl
                                </div>
                                <h3 className="text-xl font-black uppercase tracking-widest leading-none">Operational Metrics</h3>
                             </div>
-                            {matchDetails.statistics ? (
-                               <div className="grid grid-cols-1 gap-8 bg-zinc-900/10 border border-zinc-900/50 p-12 rounded-[48px]">
-                                  <StatRow label="Possession" home={parseInt(matchDetails.statistics.possession?.home || "0")} away={parseInt(matchDetails.statistics.possession?.away || "0")} unit="%" />
+                               {matchDetails.statistics ? (
+                                  <div className="relative grid grid-cols-1 gap-8 bg-zinc-900/10 border border-zinc-900/50 p-12 rounded-[48px] overflow-hidden">
+                                     <Spotlight color="rgba(6,182,212,0.10)" size={360} className="rounded-[48px]" />
+                                     <StatRow label="Possession" home={parseInt(matchDetails.statistics.possession?.home || "0")} away={parseInt(matchDetails.statistics.possession?.away || "0")} unit="%" />
                                   <StatRow label="Tactical Shots" home={matchDetails.statistics.shots?.home ?? 0} away={matchDetails.statistics.shots?.away ?? 0} />
                                   <StatRow label="Precision Strikes" home={matchDetails.statistics.shotsOnTarget?.home ?? 0} away={matchDetails.statistics.shotsOnTarget?.away ?? 0} />
                                   <StatRow label="Strategic Corners" home={matchDetails.statistics.corners?.home ?? 0} away={matchDetails.statistics.corners?.away ?? 0} />
@@ -316,7 +323,7 @@ export const MatchDetailModal: React.FC<MatchDetailModalProps> = ({ isOpen, onCl
 
                                <div className="space-y-4">
                                   {h2hData.matches?.slice(0, 4).map((m: any, idx: number) => (
-                                     <div key={idx} className="bg-zinc-900/30 p-5 rounded-3xl flex items-center justify-between border border-transparent hover:border-zinc-800 transition-all group/match">
+                                      <div key={idx} className="bg-zinc-900/30 p-5 rounded-3xl flex items-center justify-between border border-transparent hover:border-zinc-800 hover:bg-zinc-900/50 transition-all group/match">
                                         <div className="flex flex-col">
                                            <span className="text-[10px] font-black text-zinc-700 uppercase tracking-widest">{new Date(m.utcDate).getFullYear()} Archive</span>
                                            <span className="text-xs font-bold text-zinc-400">{m.competition.name.split(' ')[0]}</span>
@@ -360,15 +367,19 @@ export const MatchDetailModal: React.FC<MatchDetailModalProps> = ({ isOpen, onCl
                </div>
             </div>
             <div className="flex gap-4 w-full md:w-auto">
-               <Button onClick={onClose} variant="outline" className="flex-1 md:flex-none h-16 bg-zinc-900 border-zinc-800 text-zinc-100 font-black uppercase text-[10px] tracking-[0.3em] px-12 rounded-2xl hover:bg-zinc-800 transition-all">
-                 Terminate Log
-               </Button>
-               <Button 
-                 onClick={() => { onClose(); navigate(`/matches/${matchId}`); }}
-                 className="flex-1 md:flex-none h-16 bg-yellow-500 hover:bg-yellow-400 text-black font-black uppercase text-[10px] tracking-[0.3em] px-12 rounded-2xl shadow-[0_0_50px_rgba(234,179,8,0.3)] transition-all transform hover:-translate-y-1 active:translate-y-0"
-               >
-                 Initialize Node Sequence
-               </Button>
+               <Magnetic strength={0.2}>
+                 <Button onClick={onClose} variant="outline" className="flex-1 md:flex-none h-16 bg-zinc-900 border-zinc-800 text-zinc-100 font-black uppercase text-[10px] tracking-[0.3em] px-12 rounded-2xl hover:bg-zinc-800 transition-all">
+                   Terminate Log
+                 </Button>
+               </Magnetic>
+               <Magnetic strength={0.2}>
+                 <Button 
+                   onClick={() => { onClose(); navigate(`/matches/${matchId}`); }}
+                   className="flex-1 md:flex-none h-16 bg-yellow-500 hover:bg-yellow-400 text-black font-black uppercase text-[10px] tracking-[0.3em] px-12 rounded-2xl shadow-[0_0_50px_rgba(234,179,8,0.3)] transition-all transform hover:-translate-y-1 active:translate-y-0"
+                 >
+                   Initialize Node Sequence
+                 </Button>
+               </Magnetic>
             </div>
           </div>
         </motion.div>

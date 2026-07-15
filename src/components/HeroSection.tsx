@@ -1,6 +1,10 @@
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { 
+import React, { useRef, useState } from 'react';
+import { motion, AnimatePresence, useScroll, useTransform } from 'motion/react';
+import { Spotlight } from '@/src/components/motion/Spotlight';
+import { Magnetic } from '@/src/components/motion/Magnetic';
+import { useMotionPrefs } from '@/src/components/motion/MotionProvider';
+import { spring, tween } from '@/src/lib/motion';
+import {
   BrainCircuit, 
   Zap, 
   Target, 
@@ -230,10 +234,22 @@ export const HeroSection: React.FC = () => {
   const kellyResult = calcKellyMetric();
   const liveProbs = getLiveProbabilities();
 
+  // Scroll-linked parallax for the hero. Drifts the tactical HUD up and fades
+  // the background as the hero scrolls out of view. Transform/opacity only.
+  const heroRef = useRef<HTMLDivElement>(null);
+  const { effective } = useMotionPrefs();
+  const { scrollYProgress: heroScroll } = useScroll({
+    target: heroRef,
+    offset: ["start start", "end start"],
+  });
+  const visualY = useTransform(heroScroll, [0, 1], [0, effective === "full" ? -90 : 0]);
+  const particleOpacity = useTransform(heroScroll, [0, 0.5, 1], [1, 0.6, 0.15]);
+  const headingY = useTransform(heroScroll, [0, 1], [0, effective === "full" ? 50 : 0]);
+
   return (
-    <div className="relative w-full overflow-hidden bg-black py-20 lg:py-32 border-b border-zinc-900 rounded-b-[40px] md:rounded-b-[80px] mb-12 shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
+    <div ref={heroRef} className="relative w-full overflow-hidden bg-black py-20 lg:py-32 border-b border-zinc-900 rounded-b-[40px] md:rounded-b-[80px] mb-12 shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
       {/* Neural Network Background Animation */}
-      <div className="absolute inset-0 z-0 opacity-40">
+      <motion.div style={{ opacity: particleOpacity }} className="absolute inset-0 z-0 opacity-40">
         <svg className="absolute w-full h-full" xmlns="http://www.w3.org/2000/svg">
           <defs>
             <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
@@ -286,7 +302,7 @@ export const HeroSection: React.FC = () => {
             }}
           />
         ))}
-      </div>
+      </motion.div>
 
       <div className="max-w-7xl mx-auto px-4 relative z-10">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
@@ -294,6 +310,7 @@ export const HeroSection: React.FC = () => {
             initial={{ opacity: 0, x: -50 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.8, ease: "easeOut" }}
+            style={{ y: headingY }}
           >
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-zinc-900 border border-zinc-800 mb-6">
               <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -334,25 +351,29 @@ export const HeroSection: React.FC = () => {
               transition={{ duration: 0.8, delay: 0.8 }}
               className="mt-10 flex flex-wrap gap-4"
             >
-              <button 
-                id="btn-initialize-scan"
-                onClick={handleInitializeScan}
-                className="bg-white text-black px-8 py-4 rounded-full font-black uppercase text-sm flex items-center gap-3 hover:bg-yellow-500 transition-all hover:scale-105 active:scale-95 group cursor-pointer"
-              >
-                Initialize Scan
-                <Zap className="w-4 h-4 group-hover:fill-current" />
-              </button>
-              <button 
-                id="btn-how-it-works"
-                onClick={() => {
-                  setActiveStep(1);
-                  setIsHowItWorksOpen(true);
-                }}
-                className="border border-zinc-800 bg-zinc-900/50 backdrop-blur-sm text-white px-8 py-4 rounded-full font-black uppercase text-sm flex items-center gap-3 hover:bg-zinc-800 transition-colors uppercase cursor-pointer"
-              >
-                How it works
-                <Info className="w-4 h-4" />
-              </button>
+              <Magnetic strength={0.4}>
+                <button 
+                  id="btn-initialize-scan"
+                  onClick={handleInitializeScan}
+                  className="bg-white text-black px-8 py-4 rounded-full font-black uppercase text-sm flex items-center gap-3 hover:bg-yellow-500 transition-all hover:scale-105 active:scale-95 group cursor-pointer"
+                >
+                  Initialize Scan
+                  <Zap className="w-4 h-4 group-hover:fill-current" />
+                </button>
+              </Magnetic>
+              <Magnetic strength={0.4}>
+                <button 
+                  id="btn-how-it-works"
+                  onClick={() => {
+                    setActiveStep(1);
+                    setIsHowItWorksOpen(true);
+                  }}
+                  className="border border-zinc-800 bg-zinc-900/50 backdrop-blur-sm text-white px-8 py-4 rounded-full font-black uppercase text-sm flex items-center gap-3 hover:bg-zinc-800 transition-colors uppercase cursor-pointer"
+                >
+                  How it works
+                  <Info className="w-4 h-4" />
+                </button>
+              </Magnetic>
             </motion.div>
           </motion.div>
 
@@ -360,6 +381,7 @@ export const HeroSection: React.FC = () => {
             initial={{ opacity: 0, scale: 0.8, rotate: 5 }}
             animate={{ opacity: 1, scale: 1, rotate: 0 }}
             transition={{ duration: 1, ease: "easeOut", delay: 0.4 }}
+            style={{ y: visualY }}
             className="relative hidden lg:block"
           >
             {/* Visual Tactical HUD */}
@@ -372,6 +394,7 @@ export const HeroSection: React.FC = () => {
               />
               {/* Inner Hexagon Grid */}
               <div className="absolute inset-4 border border-yellow-500/20 rounded-[40px] flex items-center justify-center bg-zinc-950/40 backdrop-blur-sm shadow-2xl overflow-hidden">
+                <Spotlight color="rgba(234,179,8,0.12)" size={320} className="rounded-[40px]" />
                 <div className="grid grid-cols-3 gap-4 p-8 w-full h-full opacity-60">
                   {Array.from({ length: 9 }).map((_, i) => (
                     <div key={i} className="border border-zinc-900 rounded-lg flex items-center justify-center">

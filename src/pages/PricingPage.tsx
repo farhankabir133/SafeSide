@@ -434,7 +434,7 @@ export default function PricingPage() {
                 { name: "Raw Database JSON export", recon: "Omitted", tactical: "Omitted", strategic: "Daily Batch Pulls" },
                 { name: "WebSocket API Keys", recon: "Omitted", tactical: "Omitted", strategic: "Sub-10ms Dedicated Host" }
               ].map((row, idx) => (
-                <TableRow key={idx} className="border-zinc-900/50 hover:bg-zinc-900/20 transition-all font-semibold text-xs text-zinc-400">
+                 <TableRow key={idx} className="border-zinc-900/50 hover:bg-zinc-900/50 hover:border-zinc-800 transition-all font-semibold text-xs text-zinc-400">
                   <TableCell className="pl-8 text-white font-bold">{row.name}</TableCell>
                   <TableCell className="text-center text-zinc-500 font-mono text-[11px]">{row.recon}</TableCell>
                   <TableCell className="text-center text-yellow-500/90 font-mono text-[11px] bg-yellow-500/[0.02]">{row.tactical}</TableCell>

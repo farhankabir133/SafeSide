@@ -7,6 +7,7 @@ import { useAuth } from '@/src/contexts/AuthContext';
 import { useAgent } from '@/src/contexts/AgentContext';
 import { cn } from '@/src/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
+import { Magnetic } from '@/src/components/motion/Magnetic';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,26 +36,38 @@ export const Navbar: React.FC<NavbarProps> = ({ accuracy, leagueCount }) => {
   return (
     <nav className="border-b border-zinc-900 bg-black/50 backdrop-blur-xl sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-          <div className="bg-yellow-500 p-1.5 rounded-lg">
-            <BrainCircuit className="w-6 h-6 text-black" />
-          </div>
-          <div>
-            <h1 className="font-black text-xl tracking-tighter uppercase leading-none text-zinc-100">Safe Side</h1>
-            <p className="text-[10px] text-zinc-500 tracking-widest uppercase font-bold">Intelligence Unit</p>
-          </div>
-        </Link>
+        <Magnetic strength={0.4}>
+          <Link to="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+            <div className="bg-yellow-500 p-1.5 rounded-lg">
+              <BrainCircuit className="w-6 h-6 text-black" />
+            </div>
+            <div>
+              <h1 className="font-black text-xl tracking-tighter uppercase leading-none text-zinc-100">Safe Side</h1>
+              <p className="text-[10px] text-zinc-500 tracking-widest uppercase font-bold">Intelligence Unit</p>
+            </div>
+          </Link>
+        </Magnetic>
 
         <div className="hidden lg:flex items-center gap-8">
           <div className="flex items-center gap-6">
-            <Link to="/" className="text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-white transition-colors">Home</Link>
-            <Link to="/live-analysis" className="text-[10px] font-black uppercase tracking-widest text-yellow-500 hover:text-yellow-450 transition-colors flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              Live Analysis
-            </Link>
-            <Link to="/leagues" className="text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-white transition-colors">Leagues</Link>
-            <Link to="/tools/bankroll" className="text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-white transition-colors">Tools</Link>
-            <Link to="/pricing" className="text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-white transition-colors">Pricing</Link>
+            <Magnetic strength={0.5}>
+              <Link to="/" className="text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-white transition-colors">Home</Link>
+            </Magnetic>
+            <Magnetic strength={0.5}>
+              <Link to="/live-analysis" className="text-[10px] font-black uppercase tracking-widest text-yellow-500 hover:text-yellow-450 transition-colors flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Live Analysis
+              </Link>
+            </Magnetic>
+            <Magnetic strength={0.5}>
+              <Link to="/leagues" className="text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-white transition-colors">Leagues</Link>
+            </Magnetic>
+            <Magnetic strength={0.5}>
+              <Link to="/tools/bankroll" className="text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-white transition-colors">Tools</Link>
+            </Magnetic>
+            <Magnetic strength={0.5}>
+              <Link to="/pricing" className="text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-white transition-colors">Pricing</Link>
+            </Magnetic>
           </div>
           
           <Separator orientation="vertical" className="h-8 bg-zinc-800" />
@@ -129,13 +142,15 @@ export const Navbar: React.FC<NavbarProps> = ({ accuracy, leagueCount }) => {
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
-            <Button 
-              onClick={() => navigate('/auth')}
-              className="bg-yellow-500 hover:bg-yellow-400 text-black font-black uppercase tracking-tighter h-10 px-6 rounded-xl"
-            >
-              <LogIn className="w-4 h-4 mr-2" />
-              Access Unit
-            </Button>
+            <Magnetic strength={0.3}>
+              <Button 
+                onClick={() => navigate('/auth')}
+                className="bg-yellow-500 hover:bg-yellow-400 text-black font-black uppercase tracking-tighter h-10 px-6 rounded-xl"
+              >
+                <LogIn className="w-4 h-4 mr-2" />
+                Access Unit
+              </Button>
+            </Magnetic>
           )}
         </div>
 

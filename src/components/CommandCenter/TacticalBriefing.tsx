@@ -1,5 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
+import { StaggerContainer, StaggerItem } from '@/src/components/motion/Stagger';
 import { Terminal, Shield, Crosshair, Zap, AlertCircle } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { Badge } from '@/src/components/ui/badge';
@@ -70,22 +71,24 @@ export const TacticalBriefing: React.FC<TacticalBriefingProps> = ({ analysis }) 
 
           <div className="space-y-6">
              {/* Micro Events */}
-             <div className="space-y-4">
-                <p className="text-[10px] font-black uppercase text-zinc-600 tracking-widest px-2">Micro-Event Anomalies</p>
-                {analysis.micro_events?.map((event: any, i: number) => (
-                  <div key={i} className="flex items-center justify-between p-4 bg-zinc-950 border border-zinc-900 rounded-2xl">
-                     <div className="flex items-center gap-3">
-                        <div className={cn(
-                          "w-2 h-2 rounded-full",
-                          event.likelihood === 'High' ? 'bg-red-500' : event.likelihood === 'Med' ? 'bg-yellow-500' : 'bg-emerald-500'
-                        )} />
-                        <span className="text-xs font-black uppercase tracking-tight">{event.type}</span>
+                 <StaggerContainer className="space-y-4" stagger={0.06} inView={false}>
+                    <p className="text-[10px] font-black uppercase text-zinc-600 tracking-widest px-2">Micro-Event Anomalies</p>
+                 {analysis.micro_events?.map((event: any, i: number) => (
+                    <StaggerItem key={i}>
+                      <div className="flex items-center justify-between p-4 bg-zinc-950 border border-zinc-900 rounded-2xl hover:border-zinc-700 hover:bg-zinc-900/50 transition-all">
+                        <div className="flex items-center gap-3">
+                           <div className={cn(
+                             "w-2 h-2 rounded-full",
+                             event.likelihood === 'High' ? 'bg-red-500' : event.likelihood === 'Med' ? 'bg-yellow-500' : 'bg-emerald-500'
+                           )} />
+                           <span className="text-xs font-black uppercase tracking-tight">{event.type}</span>
+                        </div>
+                        <Badge variant="outline" className="text-[8px] border-zinc-800 uppercase text-zinc-500">Likelihood: {event.likelihood}</Badge>
                      </div>
-                     <Badge variant="outline" className="text-[8px] border-zinc-800 uppercase text-zinc-500">Likelihood: {event.likelihood}</Badge>
-                  </div>
-                ))}
-             </div>
-          </div>
+                    </StaggerItem>
+                  ))}
+              </StaggerContainer>
+           </div>
         </div>
 
         {/* Global Warnings */}

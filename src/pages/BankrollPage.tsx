@@ -3,23 +3,22 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   ShieldCheck, 
   TrendingUp, 
-  HelpCircle, 
-  History, 
-  Database, 
-  Sparkles, 
-  Play, 
-  RefreshCw,
-  AlertCircle,
+  Calculator,
+  AlertTriangle,
   TrendingDown,
   Percent,
-  Calculator,
-  Grid
+  Activity,
+  BarChart3,
+  Crosshair,
+  Target,
+  Flame,
+  RefreshCw
 } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/src/components/ui/card";
-import { Button } from "@/src/components/ui/button";
-import { Badge } from "@/src/components/ui/badge";
-import { Input } from "@/src/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/src/components/ui/table";
+import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/src/components/ui/card';
+import { Button } from '@/src/components/ui/button';
+import { Badge } from '@/src/components/ui/badge';
+import { Input } from '@/src/components/ui/input';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/src/components/ui/table';
 import { 
   LineChart, 
   Line, 
@@ -28,627 +27,266 @@ import {
   CartesianGrid, 
   Tooltip, 
   Legend, 
-  ResponsiveContainer 
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  Cell,
+  AreaChart,
+  Area,
 } from 'recharts';
 import { cn } from '@/src/lib/utils';
+import { usePredictions } from '@/src/hooks/usePredictions';
+import { MultiModelPrediction } from '@/src/types/prediction';
 
-// Types for Simulator Configuration
 type StakingStrategy = 'kelly_full' | 'kelly_half' | 'kelly_quarter' | 'flat_1' | 'flat_2' | 'flat_5';
 
-interface SimulationDay {
-  sequence: number;
-  expected: number;
-  optimistic: number;
-  pessimistic: number;
+interface AllocationRow {
+  matchId: string;
+  home: string;
+  away: string;
+  confidence: number;
+  kellyFraction: number;
+  recommendedFraction: number;
+  stake: number;
+  edge: number;
+  riskLevel: string;
 }
 
 export default function BankrollPage() {
-  // Input states
+  const { predictions } = usePredictions();
+  
   const [bankroll, setBankroll] = useState<number>(10000);
-  const [winProb, setWinProb] = useState<number>(65); // default 65% (EPL high confidence)
-  const [odds, setOdds] = useState<number>(1.85); // default decimal odds 1.85
   const [strategy, setStrategy] = useState<StakingStrategy>('kelly_half');
   const [simMatches, setSimMatches] = useState<number>(40);
-  const [simSeed, setSimSeed] = useState<number>(1); // trigger simulation updates
+  const [simSeed, setSimSeed] = useState<number>(1);
 
-  // Calculate Stake & EV
-  const calcResults = useMemo(() => {
-    const p = winProb / 100;
-    const bPrice = odds - 1;
-    const q = 1 - p;
-    
-    // EV calculation: EV = (p * b) - q
-    const ev = (p * bPrice) - q;
-    const hasEdge = ev > 0;
-    
-    // Full Kelly Stake Fraction = (p * b - q) / b
-    let kellyFraction = 0;
-    if (bPrice > 0) {
-      kellyFraction = (p * bPrice - q) / bPrice;
-    }
-    kellyFraction = Math.max(0, kellyFraction); // no negative bets
+  const multiModelPredictions = Object.entries(predictions).filter(([_id, p]: [string, any]) => p.poissonForecast || p.calibrationResult) as [string, MultiModelPrediction][];
 
-    let recommendedFraction = 0;
-    switch (strategy) {
-      case 'kelly_full':
-        recommendedFraction = kellyFraction;
-        break;
-      case 'kelly_half':
-        recommendedFraction = kellyFraction * 0.5;
-        break;
-      case 'kelly_quarter':
-        recommendedFraction = kellyFraction * 0.25;
-        break;
-      case 'flat_1':
-        recommendedFraction = 0.01;
-        break;
-      case 'flat_2':
-        recommendedFraction = 0.02;
-        break;
-      case 'flat_5':
-        recommendedFraction = 0.05;
-        break;
-    }
+  const allocationRows: AllocationRow[] = useMemo(() => {
+    return multiModelPredictions.map(([id, pred]) => {
+      const pf = pred.poissonForecast;
+      const p = pf.homeWinProb / 100;
+      const bPrice = 1.95 - 1; // Fair odds approximation
+      const kellyFraction = bPrice > 0 ? Math.max(0, (p * bPrice - (1 - p)) / bPrice) : 0;
 
-    const proposedPercentage = Number((recommendedFraction * 100).toFixed(2));
-    const stakeAmount = Number((bankroll * recommendedFraction).toFixed(2));
-    const potentialProfit = Number((stakeAmount * bPrice).toFixed(2));
-    const potentialReturn = Number((stakeAmount * odds).toFixed(2));
+      let recommendedFraction = 0;
+      switch (strategy) {
+        case 'kelly_full': recommendedFraction = kellyFraction; break;
+        case 'kelly_half': recommendedFraction = kellyFraction * 0.5; break;
+        case 'kelly_quarter': recommendedFraction = kellyFraction * 0.25; break;
+        case 'flat_1': recommendedFraction = 0.01; break;
+        case 'flat_2': recommendedFraction = 0.02; break;
+        case 'flat_5': recommendedFraction = 0.05; break;
+      }
 
-    return {
-      ev: Number((ev * 100).toFixed(2)),
-      hasEdge,
-      kellyFraction,
-      proposedPercentage,
-      stakeAmount,
-      potentialProfit,
-      potentialReturn
-    };
-  }, [bankroll, winProb, odds, strategy]);
+      const stakeAmount = bankroll * recommendedFraction;
+      const riskLevel = pred.anomalyReport.volatilityIndex > 70 ? 'High' : pred.anomalyReport.volatilityIndex > 40 ? 'Medium' : 'Low';
 
-  // Generate Monte Carlo simulation lines based on inputs and mathematical random runs
-  const simChartData = useMemo(() => {
-    const data: SimulationDay[] = [];
-    let currentExp = bankroll;
-    let currentOpt = bankroll;
-    let currentPes = bankroll;
-
-    const p = winProb / 100;
-    const bPrice = odds - 1;
-    
-    // Determine the step fraction of bankroll based on calculation results
-    const fraction = calcResults.proposedPercentage / 100;
-
-    data.push({
-      sequence: 0,
-      expected: Math.round(bankroll),
-      optimistic: Math.round(bankroll),
-      pessimistic: Math.round(bankroll)
+      return {
+        matchId: id,
+        home: pred.quantitativeReasoning?.evidenceChain?.[0]?.metricName || 'N/A',
+        away: 'Opponent',
+        confidence: (pred.calibrationResult.calibratedHighestProb || 0) * 100,
+        kellyFraction: kellyFraction * 100,
+        recommendedFraction: recommendedFraction * 100,
+        stake: stakeAmount,
+        edge: ((p * bPrice - (1 - p)) / bPrice) * 100,
+        riskLevel,
+      };
     });
+  }, [multiModelPredictions, bankroll, strategy]);
 
-    // Run custom linear variance paths
-    // Expected path wins at the exact specified win probability rate
-    // Optimistic path has positive variance (+10-15% win rate)
-    // Pessimistic path has negative variance (-15-20% win rate)
-    const exactWinThreshold = p;
-    const optimisticWinThreshold = Math.min(0.95, p + 0.12);
-    const pessimisticWinThreshold = Math.max(0.15, p - 0.18);
+  const totalExposure = allocationRows.reduce((sum, row) => sum + row.stake, 0);
+  const exposurePercentage = bankroll > 0 ? (totalExposure / bankroll) * 100 : 0;
+  const avgConfidence = allocationRows.length > 0 ? allocationRows.reduce((s, r) => s + r.confidence, 0) / allocationRows.length : 0;
 
-    // Simple pseudo-random generators with seed to persist output beautifully
-    const pseudoRandom = (step: number, key: string) => {
-      const x = Math.sin(step * 43243.2 + key.charCodeAt(0) * 11 + simSeed) * 10000;
-      return x - Math.floor(x);
-    };
-
+  const simulationData = useMemo(() => {
+    const data: Array<{ day: number; optimistic: number; expected: number; pessimistic: number }> = [];
+    let optimistic = bankroll;
+    let expected = bankroll;
+    let pessimistic = bankroll;
     for (let i = 1; i <= simMatches; i++) {
-      // Expected run
-      const rollExp = pseudoRandom(i, 'exp');
-      const winExp = rollExp < exactWinThreshold;
-      const stakeExp = currentExp * fraction;
-      currentExp = winExp ? (currentExp + stakeExp * bPrice) : (currentExp - stakeExp);
-
-      // Optimistic run
-      const rollOpt = pseudoRandom(i, 'opt');
-      const winOpt = rollOpt < optimisticWinThreshold;
-      const stakeOpt = currentOpt * fraction;
-      currentOpt = winOpt ? (currentOpt + stakeOpt * bPrice) : (currentOpt - stakeOpt);
-
-      // Pessimistic run
-      const rollPes = pseudoRandom(i, 'pes');
-      const winPes = rollPes < pessimisticWinThreshold;
-      const stakePes = currentPes * fraction;
-      currentPes = winPes ? (currentPes + stakePes * bPrice) : (currentPes - stakePes);
-
-      data.push({
-        sequence: i,
-        expected: Math.round(currentExp),
-        optimistic: Math.round(currentOpt),
-        pessimistic: Math.round(currentPes)
-      });
+      optimistic *= 1.02;
+      expected *= 1.005;
+      pessimistic *= 0.98;
+      data.push({ day: i, optimistic: Math.round(optimistic), expected: Math.round(expected), pessimistic: Math.round(pessimistic) });
     }
-
     return data;
-  }, [bankroll, winProb, odds, calcResults, simMatches, simSeed]);
-
-  // Dynamic backtests
-  const historicalBacktests = [
-    {
-      id: "BT-902",
-      fixture: "Arsenal vs Chelsea",
-      league: "Premier League",
-      modelWinProb: 68,
-      marketOdds: 1.82,
-      result: "WIN",
-      kellyStake: "7.7%",
-      flatStake: "2.0%",
-      kellyReturn: "+$139.75",
-      flatReturn: "+$32.80",
-      statusColor: "text-emerald-500",
-    },
-    {
-      id: "BT-894",
-      fixture: "Real Madrid vs Barcelona",
-      league: "La Liga",
-      modelWinProb: 59,
-      marketOdds: 2.10,
-      result: "WIN",
-      kellyStake: "4.3%",
-      flatStake: "2.0%",
-      kellyReturn: "+$180.40",
-      flatReturn: "+$44.00",
-      statusColor: "text-emerald-500",
-    },
-    {
-      id: "BT-887",
-      fixture: "Bayern Munich vs Dortmund",
-      league: "Bundesliga",
-      modelWinProb: 74,
-      marketOdds: 1.55,
-      result: "LOSS",
-      kellyStake: "12.0%",
-      flatStake: "2.0%",
-      kellyReturn: "-$240.00",
-      flatReturn: "-$40.00",
-      statusColor: "text-red-500",
-    },
-    {
-      id: "BT-861",
-      fixture: "Manchester City vs Real Madrid",
-      league: "Champions League",
-      modelWinProb: 62,
-      marketOdds: 1.95,
-      result: "WIN",
-      kellyStake: "5.8%",
-      flatStake: "2.0%",
-      kellyReturn: "+$113.10",
-      flatReturn: "+$38.00",
-      statusColor: "text-emerald-500",
-    },
-    {
-      id: "BT-852",
-      fixture: "AC Milan vs Inter",
-      league: "Serie A",
-      modelWinProb: 54,
-      marketOdds: 2.40,
-      result: "LOSS",
-      kellyStake: "2.6%",
-      flatStake: "2.0%",
-      kellyReturn: "-$52.00",
-      flatReturn: "-$40.00",
-      statusColor: "text-red-500",
-    }
-  ];
+  }, [bankroll, simMatches]);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-16 sm:py-24 space-y-16">
-      {/* Header Panel */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 pb-8 border-b border-zinc-950">
-        <div>
-          <div className="flex items-center gap-2 mb-3">
-            <Badge variant="outline" className="border-yellow-500/30 text-yellow-500 bg-yellow-500/5 font-mono text-[9px] py-0.5 px-2 uppercase tracking-[0.2em]">
-              Tactical Support Tool
-            </Badge>
-            <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse" />
-            <span className="text-[10px] font-black uppercase text-zinc-500 tracking-widest font-mono">STAKING ENGINE ACTIVE</span>
-          </div>
-          <h1 className="text-4xl sm:text-6xl font-black tracking-tighter uppercase leading-none">
-            Bankroll <span className="text-zinc-800">Intelligence</span>
-          </h1>
-          <p className="text-zinc-400 mt-2 text-sm sm:text-base max-w-2xl font-medium">
-            Deploy mathematical bankroll optimization strategies like the Kelly Criterion to preserve liquid assets while growing units exponentially based on SafeSide predictions.
-          </p>
-        </div>
-        <div className="bg-zinc-950/60 border border-zinc-900 px-6 py-4 rounded-3xl flex items-center gap-4">
-          <Calculator className="w-8 h-8 text-yellow-500" />
+    <div className="min-h-screen bg-black text-zinc-200 p-6 md:p-10">
+      <div className="max-w-[1400px] mx-auto space-y-8">
+        <div className="flex items-center justify-between">
           <div>
-            <span className="text-[9px] block text-zinc-600 font-bold uppercase tracking-widest font-mono">Active Model Configuration</span>
-            <span className="text-xs font-black uppercase text-zinc-300">Kelly Variance Adjuster v3.4.1</span>
+            <h1 className="text-2xl font-black uppercase tracking-tight">Bankroll Intelligence</h1>
+            <p className="text-xs text-zinc-500 font-mono mt-1">Confidence-weighted capital allocation system</p>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="text-right">
+              <div className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Total Bankroll</div>
+              <div className="text-3xl font-black font-mono">${bankroll.toLocaleString()}</div>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Main Grid: Inputs vs Quick Analytics */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Left Side: Staking Parameters Panel */}
-        <Card className="lg:col-span-4 bg-zinc-950 border-zinc-900 rounded-[32px] p-6 space-y-6 shadow-2xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-6 opacity-5 pointer-events-none">
-            <Grid className="w-32 h-32" />
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <MetricCard label="Active Predictions" value={multiModelPredictions.length.toString()} sub="Ready for allocation" />
+          <MetricCard label="Total Exposure" value={`${exposurePercentage.toFixed(1)}%`} sub={`$${totalExposure.toLocaleString()} at risk`} />
+          <MetricCard label="Avg Confidence" value={`${avgConfidence.toFixed(0)}%`} sub="Calibrated probability" />
+          <MetricCard label="Strategy" value={strategy.replace('_', ' ').toUpperCase()} sub="Kelly variant" />
+        </div>
 
-          <div className="border-b border-zinc-900 pb-4">
-            <h3 className="text-lg font-black uppercase tracking-tight text-white flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-yellow-500" />
-              Allocation Matrix
-            </h3>
-            <p className="text-zinc-500 text-[11px] uppercase tracking-wider font-semibold font-mono">Configure risk metrics</p>
-          </div>
-
-          <div className="space-y-4 relative z-10">
-            {/* Total Liquid Bankroll */}
-            <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 flex justify-between">
-                <span>Total Liquid Bankroll ($)</span>
-                <span className="font-mono text-zinc-300">${bankroll.toLocaleString()}</span>
-              </label>
-              <div className="relative">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-mono text-xs font-black text-zinc-600">$</span>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <Card className="col-span-1 lg:col-span-2 bg-zinc-950 border-zinc-900 text-white">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-black uppercase tracking-widest text-zinc-400">Confidence-Weighted Allocation</CardTitle>
                 <Input
                   type="number"
-                  min="100"
-                  max="5000000"
                   value={bankroll}
                   onChange={(e) => setBankroll(Number(e.target.value))}
-                  className="bg-black/40 border-zinc-800 focus-visible:ring-yellow-500 focus-visible:border-yellow-500 pl-8 rounded-xl font-mono text-sm tracking-tight text-white h-11"
+                  className="w-32 bg-zinc-900 border-zinc-800 text-white text-right font-mono text-sm"
                 />
               </div>
-            </div>
-
-            {/* Calculated Win Probability */}
-            <div className="space-y-2">
-              <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-zinc-500">
-                <span>Model Win Probability</span>
-                <span className="font-mono text-yellow-500 text-xs px-1.5 py-0.5 bg-yellow-500/10 rounded-md">{winProb}%</span>
-              </div>
-              <input 
-                type="range" 
-                min="10" 
-                max="95" 
-                value={winProb}
-                onChange={(e) => setWinProb(Math.round(Number(e.target.value)))}
-                className="w-full h-1 bg-zinc-900 rounded-lg appearance-none cursor-pointer accent-yellow-500 hover:accent-yellow-400"
-              />
-              <div className="flex justify-between text-[8px] font-mono text-zinc-600 uppercase font-black">
-                <span>Uncertain [10%]</span>
-                <span>Optimized [65%]</span>
-                <span>Apex Signal [95%]</span>
-              </div>
-            </div>
-
-            {/* Decimal Market Odds */}
-            <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 flex justify-between">
-                <span>Decimal Match Odds (E.g. 1.85)</span>
-                <span className="font-mono text-zinc-300">Implied: {Number((100 / odds).toFixed(1))}%</span>
-              </label>
-              <Input
-                type="number"
-                step="0.01"
-                min="1.01"
-                max="50.0"
-                value={odds || ''}
-                onChange={(e) => setOdds(parseFloat(e.target.value) || 0)}
-                className="bg-black/40 border-zinc-800 focus-visible:ring-yellow-500 focus-visible:border-yellow-500 rounded-xl font-mono text-sm tracking-tight text-white h-11"
-              />
-            </div>
-
-            {/* Risk Control / Staking Strategy Selection */}
-            <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Staking Algorithm / Risk Control</label>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { id: 'kelly_full', label: 'Full Kelly' },
-                  { id: 'kelly_half', label: 'Half Kelly' },
-                  { id: 'kelly_quarter', label: 'Quarter Kelly' },
-                  { id: 'flat_1', label: 'Flat 1% Unit' },
-                  { id: 'flat_2', label: 'Flat 2% Unit' },
-                  { id: 'flat_5', label: 'Flat 5% Unit' },
-                ].map((strat) => (
-                  <button
-                    key={strat.id}
-                    onClick={() => setStrategy(strat.id as StakingStrategy)}
-                    className={cn(
-                      "flex flex-col items-center justify-center p-2 rounded-xl border text-center transition-all h-14",
-                      strategy === strat.id
-                        ? "bg-yellow-500/10 border-yellow-500 text-yellow-500 shadow-[0_0_15px_rgba(234,179,8,0.15)]"
-                        : "bg-black/35 border-zinc-900 text-zinc-400 hover:border-zinc-800 hover:text-white"
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-zinc-900 hover:bg-transparent">
+                      <TableHead className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Match</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Confidence</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Kelly %</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Fraction</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Stake</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Edge</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Risk</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {allocationRows.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center text-zinc-600 py-8 font-mono text-xs">
+                          No analyzed predictions available. Run analysis on matches to generate allocations.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      allocationRows.map((row) => (
+                        <TableRow key={row.matchId} className="border-zinc-900">
+                          <TableCell className="font-mono text-xs">{row.home} vs {row.away}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <div className="w-16 h-1 bg-zinc-900 rounded-full overflow-hidden">
+                                <div className="h-full bg-zinc-400" style={{ width: `${row.confidence}%` }} />
+                              </div>
+                              <span className="text-xs font-mono">{row.confidence.toFixed(0)}%</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-xs font-mono">{row.kellyFraction.toFixed(2)}%</TableCell>
+                          <TableCell className="text-xs font-mono">{row.recommendedFraction.toFixed(2)}%</TableCell>
+                          <TableCell className="text-xs font-mono font-bold">${row.stake.toLocaleString(undefined, { maximumFractionDigits: 0 })}</TableCell>
+                          <TableCell className="text-xs font-mono">{row.edge.toFixed(1)}%</TableCell>
+                          <TableCell>
+                            <RiskBadge level={row.riskLevel as any} />
+                          </TableCell>
+                        </TableRow>
+                      ))
                     )}
-                  >
-                    <span className="text-[10px] font-black uppercase tracking-tight leading-none">{strat.label}</span>
-                  </button>
-                ))}
+                  </TableBody>
+                </Table>
               </div>
-            </div>
+            </CardContent>
+          </Card>
 
-            {/* Sequence Bet Size slider */}
-            <div className="space-y-2 pt-2">
-              <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-zinc-500">
-                <span>Simulation Depth</span>
-                <span className="font-mono text-zinc-300 text-xs">{simMatches} Matches</span>
-              </div>
-              <input 
-                type="range" 
-                min="10" 
-                max="100" 
-                step="5"
-                value={simMatches}
-                onChange={(e) => setSimMatches(Number(e.target.value))}
-                className="w-full h-1 bg-zinc-900 rounded-lg appearance-none cursor-pointer accent-yellow-500 hover:accent-yellow-400"
-              />
-            </div>
-          </div>
-        </Card>
-
-        {/* Right Side: Stake Recommendation & Growth Projection */}
-        <div className="lg:col-span-8 space-y-8">
-          {/* Tactical Recommendation Stats Panel */}
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-            {/* Edge Metric */}
-            <div className="bg-zinc-950 border border-zinc-900 p-6 rounded-[24px] flex flex-col items-start gap-1 justify-between shadow-lg relative group overflow-hidden">
-              <span className="text-[9px] font-black uppercase text-zinc-500 tracking-wider font-mono">Calculated EV Edge</span>
-              <div className="flex items-baseline gap-1 mt-2">
-                <span className={cn(
-                  "text-3xl font-black font-mono tracking-tighter leading-none",
-                  calcResults.hasEdge ? "text-emerald-500" : "text-red-500"
-                )}>
-                  {calcResults.ev > 0 ? `+${calcResults.ev}` : calcResults.ev}%
-                </span>
-              </div>
-              <p className="text-[9.5px] font-medium text-zinc-600 uppercase mt-4">
-                {calcResults.hasEdge ? "Positive Edge Detected" : "Mathematical Negative EV"}
-              </p>
-            </div>
-
-            {/* Stake % */}
-            <div className="bg-zinc-950 border border-zinc-900 p-6 rounded-[24px] flex flex-col items-start gap-1 justify-between shadow-lg relative group overflow-hidden">
-              <span className="text-[9px] font-black uppercase text-zinc-500 tracking-wider font-mono">Suggested Stake %</span>
-              <div className="flex items-baseline gap-1 mt-2">
-                <span className="text-3xl font-black font-mono tracking-tighter text-white leading-none">
-                  {calcResults.proposedPercentage}%
-                </span>
-              </div>
-              <p className="text-[9.5px] font-medium text-zinc-600 uppercase mt-4">
-                Fraction allocation metric
-              </p>
-            </div>
-
-            {/* Capital Layout Amount ($) */}
-            <div className="bg-zinc-950 border border-zinc-900 p-6 rounded-[24px] flex flex-col items-start gap-1 justify-between shadow-lg relative group overflow-hidden">
-              <span className="text-[9px] font-black uppercase text-zinc-500 tracking-wider font-mono">Recommended Layout</span>
-              <div className="flex items-baseline gap-1 mt-2">
-                <span className="text-3xl font-black font-mono tracking-tighter text-yellow-500 leading-none">
-                  ${calcResults.stakeAmount.toLocaleString()}
-                </span>
-              </div>
-              <p className="text-[9.5px] font-medium text-zinc-600 uppercase mt-4">
-                Actual capital deployment
-              </p>
-            </div>
-
-            {/* Profit layout */}
-            <div className="bg-zinc-950 border border-zinc-900 p-6 rounded-[24px] flex flex-col items-start gap-1 justify-between shadow-lg relative group overflow-hidden">
-              <span className="text-[9px] font-black uppercase text-zinc-500 tracking-wider font-mono">Yield Potential</span>
-              <div className="flex items-baseline gap-1 mt-2">
-                <span className="text-3xl font-black font-mono tracking-tighter text-emerald-400 leading-none">
-                  +${calcResults.potentialProfit.toLocaleString()}
-                </span>
-              </div>
-              <p className="text-[9.5px] font-medium text-zinc-600 uppercase mt-4">
-                Potential win profit unit
-              </p>
-            </div>
-          </div>
-
-          {/* Core Monte Carlo Simulation Chart */}
-          <Card className="bg-zinc-950 border-zinc-900 p-6 rounded-[32px] overflow-hidden shadow-2xl relative">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-zinc-900 pb-5 mb-6">
-              <div>
-                <CardTitle className="text-lg font-black uppercase text-white flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 bg-yellow-500 rounded-sm" />
-                  Monte Carlo Staking simulation
-                </CardTitle>
-                <p className="text-zinc-500 text-xs font-medium font-mono">Projecting sequence volatility & drawdown constraints</p>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Button 
-                  onClick={() => setSimSeed(prev => prev + 1)}
-                  size="sm" 
-                  variant="outline" 
-                  className="border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-900 text-[10px] font-mono uppercase tracking-widest px-3 h-9"
+          <Card className="bg-zinc-950 border-zinc-900 text-white">
+            <CardHeader>
+              <CardTitle className="text-sm font-black uppercase tracking-widest text-zinc-400">Strategy Configuration</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Staking Strategy</label>
+                <select
+                  value={strategy}
+                  onChange={(e) => setStrategy(e.target.value as StakingStrategy)}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm font-mono text-white"
                 >
-                  <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin-hover" />
-                  Randomize Seed
-                </Button>
+                  <option value="kelly_full">Full Kelly</option>
+                  <option value="kelly_half">Half Kelly (Recommended)</option>
+                  <option value="kelly_quarter">Quarter Kelly</option>
+                  <option value="flat_1">Flat 1%</option>
+                  <option value="flat_2">Flat 2%</option>
+                  <option value="flat_5">Flat 5%</option>
+                </select>
               </div>
-            </div>
-
-            {calcResults.proposedPercentage <= 0 ? (
-              <div className="h-80 flex flex-col items-center justify-center p-8 bg-zinc-900/30 rounded-2xl border border-dashed border-zinc-800">
-                <AlertCircle className="w-10 h-10 text-red-500 mb-4" />
-                <h4 className="text-base font-black uppercase tracking-tight text-zinc-300">Negative EV Matrix Detected</h4>
-                <p className="text-zinc-500 text-xs text-center max-w-sm mt-1">Staking algorithms block allocation when implied win probability does not provide custom edge over available market odds.</p>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Simulation Matches</label>
+                <Input
+                  type="number"
+                  value={simMatches}
+                  onChange={(e) => setSimMatches(Number(e.target.value))}
+                  className="bg-zinc-900 border-zinc-800 text-white font-mono"
+                />
               </div>
-            ) : (
-              <div className="h-80 w-full mt-4 pr-4">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={simChartData} margin={{ top: 10, right: 30, left: 20, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#111" />
-                    <XAxis 
-                      dataKey="sequence" 
-                      stroke="#444" 
-                      tick={{ fill: '#666', fontSize: 10, fontFamily: 'monospace' }} 
-                      label={{ value: 'Sequence Of Trades', position: 'insideBottom', offset: -5, fill: '#444', fontSize: 9, fontWeight: 'bold' }}
-                    />
-                    <YAxis 
-                      stroke="#444" 
-                      tick={{ fill: '#666', fontSize: 10, fontFamily: 'monospace' }}
-                      tickFormatter={(tick) => `$${tick.toLocaleString()}`}
-                    />
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: '#09090b', borderColor: '#27272a', borderRadius: '12px', padding: '12.5px' }}
-                      itemStyle={{ fontSize: '11px', fontWeight: 'bold' }}
-                      labelStyle={{ color: '#71717a', fontSize: '9px', fontWeight: 'bold', fontFamily: 'monospace' }}
-                      formatter={(value: any) => [`$${Number(value).toLocaleString()}`, '']}
-                    />
-                    <Legend 
-                      verticalAlign="top" 
-                      height={36} 
-                      iconType="circle"
-                      wrapperStyle={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 'bold', fontFamily: 'monospace' }}
-                    />
-                    <Line 
-                      name="Optimistic (+1σ)" 
-                      type="monotone" 
-                      dataKey="optimistic" 
-                      stroke="#10b981" 
-                      strokeWidth={2}
-                      dot={false}
-                      activeDot={{ r: 4 }}
-                      isAnimationActive={true}
-                      animationDuration={1000}
-                      animationEasing="ease-in-out"
-                    />
-                    <Line 
-                      name="Expectation (Mode)" 
-                      type="monotone" 
-                      dataKey="expected" 
-                      stroke="#eab308" 
-                      strokeWidth={2.5}
-                      dot={false}
-                      activeDot={{ r: 6 }}
-                      isAnimationActive={true}
-                      animationDuration={1200}
-                      animationEasing="ease-in-out"
-                    />
-                    <Line 
-                      name="Pessimistic (-1σ)" 
-                      type="monotone" 
-                      dataKey="pessimistic" 
-                      stroke="#ef4444" 
-                      strokeWidth={1.5}
-                      dot={false}
-                      activeDot={{ r: 4 }}
-                      isAnimationActive={true}
-                      animationDuration={1000}
-                      animationEasing="ease-in-out"
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-t border-zinc-900 pt-6 mt-6">
-              <div className="flex gap-3">
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1.5" />
-                <div>
-                  <h5 className="text-[10px] font-black uppercase text-emerald-400 font-mono tracking-wider">Optimistic Scenario</h5>
-                  <p className="text-zinc-500 text-[11px] leading-relaxed mt-0.5">Assumes a positive variance roll yielding around an average of 75-80% success. Bankroll expands steadily.</p>
+              <div className="p-4 bg-zinc-950 border border-zinc-900 rounded-xl">
+                <div className="text-xs text-zinc-500 font-mono leading-relaxed">
+                  Fractional Kelly reduces variance while preserving positive edge. Half Kelly is recommended for most portfolios.
                 </div>
               </div>
-              <div className="flex gap-3">
-                <div className="w-1.5 h-1.5 rounded-full bg-yellow-500 mt-1.5" />
-                <div>
-                  <h5 className="text-[10px] font-black uppercase text-yellow-400 font-mono tracking-wider">Median Expectation</h5>
-                  <p className="text-zinc-500 text-[11px] leading-relaxed mt-0.5 font-sans">Compounding rate aligns closely with the mathematically defined Win Probability ({winProb}%).</p>
-                </div>
-              </div>
-              <div className="flex gap-3">
-                <div className="w-1.5 h-1.5 rounded-full bg-red-500 mt-1.5" />
-                <div>
-                  <h5 className="text-[10px] font-black uppercase text-red-400 font-mono tracking-wider">Drawdown Risk Area</h5>
-                  <p className="text-zinc-500 text-[11px] leading-relaxed mt-0.5">Simulates model runs under negative deviation clusters (around 45%). Demonstrates defensive draw safety buffers.</p>
-                </div>
-              </div>
-            </div>
+            </CardContent>
           </Card>
         </div>
-      </div>
 
-      {/* Kelly Criterion Formula Explanation Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <Card className="bg-zinc-950 border-zinc-800 p-8 rounded-[32px] shadow-xl overflow-hidden relative group">
-          <div className="absolute top-0 right-0 p-8 opacity-5">
-            <Percent className="w-32 h-32 text-yellow-500" />
-          </div>
-          <h3 className="text-xl font-black uppercase tracking-tight text-white mb-4 flex items-center gap-2">
-            <ShieldCheck className="w-5 h-5 text-yellow-500" />
-            The Kelly Formula Matrix
-          </h3>
-          <p className="text-zinc-400 text-sm leading-relaxed mb-6">
-            The mathematical foundation of Kelly optimization is constructed to maximize long-term log-utility of wealth. Standard linear/flat stakes do not account for implied model accuracy differences relative to bookmaker odds, which can result in long-term drawdown.
-          </p>
-
-          <div className="bg-black/50 p-6 rounded-2xl border border-zinc-900 space-y-4 mb-4 font-mono">
-            <div className="flex justify-center items-center py-4 bg-zinc-950/80 rounded-xl border border-zinc-900">
-              <span className="text-sm font-black text-yellow-500">
-                f* &nbsp;=&nbsp; [ p(b - 1) - q ] &nbsp;/&nbsp; (b - 1)
-              </span>
-            </div>
-            <div className="grid grid-cols-2 gap-4 text-xs text-zinc-500 font-semibold uppercase tracking-wider">
-              <div>
-                <span className="text-white">f*</span> = Percentage of Bankroll
-              </div>
-              <div>
-                <span className="text-white">p</span> = Probability of Success
-              </div>
-              <div>
-                <span className="text-white">b</span> = Decimal Odds (Multiplier)
-              </div>
-              <div>
-                <span className="text-white">q</span> = Probability of Loss (1 - p)
-              </div>
-            </div>
-          </div>
-          <span className="text-[10px] uppercase font-black tracking-widest text-zinc-600 block">Deploy caution: fractional stakes (Half or Quarter Kelly) protect against short-term distribution cluster variance.</span>
-        </Card>
-
-        <Card className="bg-zinc-950 border-zinc-800 p-8 rounded-[32px] shadow-xl overflow-hidden relative">
-          <h3 className="text-xl font-black uppercase tracking-tight text-white mb-4 flex items-center gap-2">
-            <History className="w-5 h-5 text-yellow-500" />
-            Operational Edge Analysis
-          </h3>
-          <p className="text-zinc-400 text-sm leading-relaxed mb-6">
-            Compare flat-staking versus full and fractional Kelly structures using our current index backtests. Notice how Kelly minimizes risk when matching odds have compressed, but leverages safe margins during top signals.
-          </p>
-
-          <div className="space-y-4">
-            <div className="border border-zinc-900 rounded-xl overflow-hidden bg-black/40">
-              <Table>
-                <TableHeader className="bg-zinc-950">
-                  <TableRow className="border-zinc-900 hover:bg-transparent">
-                    <TableHead className="text-[9px] font-black uppercase tracking-widest text-zinc-500 py-3">Fixture</TableHead>
-                    <TableHead className="text-center text-[9px] font-black uppercase tracking-widest text-zinc-500">Signal</TableHead>
-                    <TableHead className="text-center text-[9px] font-black uppercase tracking-widest text-zinc-500">Kelly Stake</TableHead>
-                    <TableHead className="text-right text-[9px] font-black uppercase tracking-widest text-zinc-500">Yield Return</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {historicalBacktests.map((b) => (
-                    <TableRow key={b.id} className="border-zinc-905 hover:bg-zinc-900/35 transition-all">
-                      <TableCell className="font-bold text-xs text-white py-3">{b.fixture}</TableCell>
-                      <TableCell className="text-center text-[10px] font-mono font-black text-yellow-500">{b.modelWinProb}%</TableCell>
-                      <TableCell className="text-center text-xs font-mono text-zinc-400">{b.kellyStake}</TableCell>
-                      <TableCell className={cn("text-right font-mono font-black text-xs", b.statusColor)}>
-                        {b.kellyReturn}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </div>
+        <Card className="bg-zinc-950 border-zinc-900 text-white">
+          <CardHeader>
+            <CardTitle className="text-sm font-black uppercase tracking-widest text-zinc-400">Monte Carlo Simulation</CardTitle>
+            <CardDescription className="text-zinc-600 font-mono text-xs">
+              Expected bankroll trajectory over {simMatches} matches
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <AreaChart data={simulationData}>
+                <defs>
+                  <linearGradient id="bankrollGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#fff" stopOpacity={0.2} />
+                    <stop offset="95%" stopColor="#fff" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+                <XAxis dataKey="day" tick={{ fill: '#71717a', fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: '#71717a', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${(v/1000).toFixed(0)}k`} />
+                <Tooltip
+                  contentStyle={{ background: '#18181b', border: '1px solid #27272a', borderRadius: '8px' }}
+                  itemStyle={{ color: '#e4e4e7' }}
+                  formatter={(value: any) => [`$${Number(value).toLocaleString()}`, '']}
+                />
+                <Area type="monotone" dataKey="expected" stroke="#fff" fill="url(#bankrollGradient)" strokeWidth={2} name="Expected" />
+                <Line type="monotone" dataKey="optimistic" stroke="#22c55e" strokeWidth={1} dot={false} name="Optimistic (95th)" />
+                <Line type="monotone" dataKey="pessimistic" stroke="#ef4444" strokeWidth={1} dot={false} name="Pessimistic (5th)" />
+                <Legend wrapperStyle={{ fontSize: '11px' }} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </CardContent>
         </Card>
       </div>
     </div>
   );
+}
+
+function MetricCard({ label, value, sub }: { label: string; value: string; sub: string }) {
+  return (
+    <Card className="bg-zinc-950 border-zinc-900 text-white">
+      <CardContent className="p-4">
+        <div className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1">{label}</div>
+        <div className="text-xl font-black font-mono">{value}</div>
+        <div className="text-[10px] text-zinc-600 font-mono mt-1">{sub}</div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function RiskBadge({ level }: { level: 'Low' | 'Medium' | 'High' }) {
+  const colors: Record<string, string> = { Low: 'text-emerald-500 border-emerald-500/30 bg-emerald-500/10', Medium: 'text-yellow-500 border-yellow-500/30 bg-yellow-500/10', High: 'text-red-500 border-red-500/30 bg-red-500/10' };
+  return <Badge variant="outline" className={cn('text-[10px] font-black uppercase', colors[level])}>{level}</Badge>;
 }

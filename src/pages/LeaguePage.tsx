@@ -253,12 +253,12 @@ Keep it professional, data-centric, and use the 'Safe Side' intelligence tone.`;
                       return (
                         <TableRow 
                           key={item.team.id} 
-                          className={cn(
-                            "border-zinc-900/50 hover:bg-zinc-900/30 transition-all cursor-pointer group h-16 relative",
-                            isUCL && "bg-emerald-500/[0.04]",
-                            isUEL && "bg-blue-500/[0.04]",
-                            isRelegation && "bg-red-500/[0.04]"
-                          )}
+                           className={cn(
+                             "border-zinc-900/50 hover:bg-zinc-900/50 hover:border-zinc-800 transition-all cursor-pointer group h-16 relative",
+                             isUCL && "bg-emerald-500/[0.04]",
+                             isUEL && "bg-blue-500/[0.04]",
+                             isRelegation && "bg-red-500/[0.04]"
+                           )}
                           onClick={() => navigate(`/teams/${item.team.id}`)}
                         >
                           <TableCell className="text-center px-6 relative">
@@ -327,8 +327,7 @@ Keep it professional, data-centric, and use the 'Safe Side' intelligence tone.`;
                   transition={{ delay: i * 0.05 }}
                 >
                   <Card 
-                    className="bg-zinc-950 border-zinc-900 p-6 rounded-[32px] hover:border-yellow-500/30 transition-all flex flex-col gap-6 relative group cursor-pointer shadow-xl overflow-hidden"
-                    onClick={() => navigate(`/teams/${s.team.id}`)}
+                    className="bg-zinc-950 border-zinc-900 p-6 rounded-[32px] hover:border-yellow-500/30 hover:bg-zinc-900/50 transition-all flex flex-col gap-6 relative group cursor-pointer shadow-xl overflow-hidden"
                   >
                     <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
                       <Target className="w-24 h-24" />

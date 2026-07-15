@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useMotionPrefs } from '@/src/components/motion/MotionProvider';
+import { Spotlight } from '@/src/components/motion/Spotlight';
+import { Magnetic } from '@/src/components/motion/Magnetic';
 import { useNavigate } from 'react-router-dom';
 import { 
   Radio, 
@@ -85,6 +88,7 @@ export default function LiveAnalysisPage() {
 
   const connected = !streamLoading && !streamError && !isReconnecting;
   const latency = 1.25;
+  const { effective } = useMotionPrefs();
 
   const [activeTab, setActiveTab] = useState<'statistics' | 'poisson' | 'alerts' | 'quantitative'>('statistics');
   const feedEndRef = useRef<HTMLDivElement>(null);
@@ -297,7 +301,7 @@ Provide a punchy, highly technical response under 4 sentences. Break down key pr
                   <div 
                     key={m.id}
                     onClick={() => setSelectedMatchId(m.id)}
-                    className="p-6 bg-zinc-950 border border-zinc-900 hover:border-cyan-500/30 hover:bg-zinc-900/30 rounded-[20px] transition-all space-y-4 cursor-pointer group"
+                     className="p-6 bg-zinc-950 border border-zinc-900 hover:border-cyan-500/30 hover:bg-zinc-900/50 rounded-[20px] transition-all space-y-4 cursor-pointer group"
                   >
                     <div className="flex justify-between items-center text-[10px] font-mono">
                       <span className="text-zinc-500 uppercase tracking-widest">{m.competition?.name}</span>
@@ -345,6 +349,7 @@ Provide a punchy, highly technical response under 4 sentences. Break down key pr
 
         {/* Global stream control toolbar */}
         <div className="flex flex-wrap items-center justify-between gap-4 bg-zinc-950 border border-zinc-900 rounded-2xl p-4.5">
+          <Magnetic strength={0.3}>
           <button 
             onClick={handleDisconnectStream}
             className="flex items-center gap-2 text-zinc-500 hover:text-white transition-colors text-[10px] font-black uppercase tracking-widest cursor-pointer group shrink-0"
@@ -352,6 +357,7 @@ Provide a punchy, highly technical response under 4 sentences. Break down key pr
             <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
             <span>EXITS TO COCKPIT BOARD</span>
           </button>
+        </Magnetic>
 
           <div className="px-3 py-1 bg-gradient-to-r from-red-500/10 to-red-500/5 border border-red-500/25 rounded-lg text-red-400 font-mono text-[9px] font-black uppercase tracking-wider shrink-0 flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping"></span> Real-Time Synchronized Telemetry Feed
@@ -382,18 +388,21 @@ Provide a punchy, highly technical response under 4 sentences. Break down key pr
               <div className="text-[9px] font-mono text-zinc-500 uppercase font-black">Frame Latency</div>
               <div className="text-xs font-mono font-black text-cyan-400">{latency}ms</div>
             </div>
-            <button
-              onClick={() => openAgentWithMatch(matchState)}
-              className="px-4 py-3 bg-zinc-900 hover:bg-zinc-850 text-white border border-zinc-800 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap"
-            >
-              <Brain className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-              Agent Console
-            </button>
+            <Magnetic strength={0.3}>
+              <button
+                onClick={() => openAgentWithMatch(matchState)}
+                className="px-4 py-3 bg-zinc-900 hover:bg-zinc-850 text-white border border-zinc-800 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap"
+              >
+                <Brain className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                Agent Console
+              </button>
+            </Magnetic>
           </div>
         </div>
 
         {/* Dynamic Stadium Scoreboard display */}
-        <div id="live-scoreboard" className="grid grid-cols-1 lg:grid-cols-12 gap-6 bg-zinc-950 border border-zinc-900 rounded-[24px] p-6 relative overflow-hidden font-sans">
+        <div id="live-scoreboard" className="relative grid grid-cols-1 lg:grid-cols-12 gap-6 bg-zinc-950 border border-zinc-900 rounded-[24px] p-6 overflow-hidden font-sans">
+          <Spotlight color="rgba(6,182,212,0.10)" size={420} className="rounded-[24px]" />
           <div className="lg:col-span-12 flex flex-col md:flex-row items-center justify-between gap-6 border-b border-zinc-900 pb-6">
             <div className="flex items-center gap-3">
               <div className="bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-[10px] font-black uppercase px-2.5 py-1 rounded-full">
@@ -478,21 +487,24 @@ Provide a punchy, highly technical response under 4 sentences. Break down key pr
               <div className="flex items-center gap-2 border-b border-zinc-900 pb-4 mb-4">
                 <button
                   onClick={() => setActiveTab('statistics')}
-                  className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${activeTab === 'statistics' ? 'bg-cyan-400 text-black' : 'text-zinc-400 bg-zinc-900/50'}`}
+                  className={`relative px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${activeTab === 'statistics' ? 'bg-cyan-400 text-black' : 'text-zinc-400 bg-zinc-900/50'}`}
                 >
-                  Live Statistics
+                  {activeTab === 'statistics' && <motion.div layoutId="liveTabPill" className="absolute inset-0 bg-cyan-400 rounded-lg" />}
+                  <span className="relative z-10">Live Statistics</span>
                 </button>
                 <button
                   onClick={() => setActiveTab('poisson')}
-                  className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${activeTab === 'poisson' ? 'bg-cyan-400 text-black' : 'text-zinc-400 bg-zinc-900/50'}`}
+                  className={`relative px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${activeTab === 'poisson' ? 'bg-cyan-400 text-black' : 'text-zinc-400 bg-zinc-900/50'}`}
                 >
-                  Poisson Fluctuations
+                  {activeTab === 'poisson' && <motion.div layoutId="liveTabPill" className="absolute inset-0 bg-cyan-400 rounded-lg" />}
+                  <span className="relative z-10">Poisson Fluctuations</span>
                 </button>
                 <button
                   onClick={() => setActiveTab('quantitative')}
-                  className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${activeTab === 'quantitative' ? 'bg-cyan-400 text-black' : 'text-zinc-400 bg-zinc-900/50'}`}
+                  className={`relative px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${activeTab === 'quantitative' ? 'bg-cyan-400 text-black' : 'text-zinc-400 bg-zinc-900/50'}`}
                 >
-                  Quantitative Reasoning HUD
+                  {activeTab === 'quantitative' && <motion.div layoutId="liveTabPill" className="absolute inset-0 bg-cyan-400 rounded-lg" />}
+                  <span className="relative z-10">Quantitative Reasoning HUD</span>
                 </button>
               </div>
 

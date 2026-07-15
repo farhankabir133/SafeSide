@@ -5,6 +5,7 @@ import { Card } from '@/src/components/ui/card';
 import { Badge } from '@/src/components/ui/badge';
 import { Globe, Trophy, ArrowRight } from 'lucide-react';
 import { motion } from 'motion/react';
+import { StaggerContainer, StaggerItem } from '@/src/components/motion/Stagger';
 
 export default function LeaguesIndexPage() {
   const navigate = useNavigate();
@@ -16,18 +17,13 @@ export default function LeaguesIndexPage() {
         <p className="text-zinc-500 font-medium max-w-2xl">Access tactical intelligence across all major global operational zones. Each zone includes localized form modeling and fatigue mechanics.</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+      <StaggerContainer className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8" stagger={0.08}>
         {LEAGUES.map((league, i) => (
-          <motion.div
-            key={league.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.1 }}
-          >
-            <Card 
-              onClick={() => navigate(`/leagues/${league.slug}`)}
-              className="bg-zinc-950 border-zinc-900 overflow-hidden group hover:border-yellow-500/50 transition-all rounded-3xl cursor-pointer p-8 relative"
-            >
+          <StaggerItem key={league.id}>
+             <Card 
+                onClick={() => navigate(`/leagues/${league.slug}`)}
+                className="bg-zinc-950 border-zinc-900 overflow-hidden group hover:border-yellow-500/50 hover:bg-zinc-900/30 transition-all rounded-3xl cursor-pointer p-8 relative"
+             >
               <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
                 <Globe className="w-32 h-32 text-yellow-500" />
               </div>
@@ -51,9 +47,9 @@ export default function LeaguesIndexPage() {
                 </div>
               </div>
             </Card>
-          </motion.div>
+          </StaggerItem>
         ))}
-      </div>
+      </StaggerContainer>
     </div>
   );
 }

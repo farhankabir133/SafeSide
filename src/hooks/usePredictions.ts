@@ -1,14 +1,17 @@
 import { useState, useEffect } from 'react';
-import { MatchAnalysis, analyzeMatch } from '@/src/services/geminiService';
 import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { MatchAnalysis } from '@/src/services/geminiService';
+import { MultiModelPrediction } from '@/src/types/prediction';
+
+type PredictionRecord = MatchAnalysis | MultiModelPrediction;
 
 export function usePredictions() {
   const { user } = useAuth();
   const [matches, setMatches] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [predictions, setPredictions] = useState<Record<string, MatchAnalysis>>({});
+  const [predictions, setPredictions] = useState<Record<string, PredictionRecord>>({});
   const [stats, setStats] = useState({ total: 0, accuracy: 0 });
   const [isDemo, setIsDemo] = useState(false);
   const [rateLimit, setRateLimit] = useState<{ remaining: number; reset: number } | null>(null);
@@ -19,14 +22,12 @@ export function usePredictions() {
   const [globalCooldown, setGlobalCooldown] = useState<number | null>(null);
   const [hasAttemptedInitialAnalysis, setHasAttemptedInitialAnalysis] = useState(false);
 
-  // Load from localStorage on mount
   useEffect(() => {
     try {
       const cached = localStorage.getItem('match_predictions_cache');
       if (cached) {
         const parsed = JSON.parse(cached);
-        // Only keep predictions from the last 48 hours
-        const filtered: Record<string, MatchAnalysis> = {};
+        const filtered: Record<string, PredictionRecord> = {};
         const now = Date.now();
         Object.entries(parsed).forEach(([id, data]: [string, any]) => {
           if (data && data._timestamp && now - data._timestamp < 1000 * 60 * 60 * 48) {
@@ -40,7 +41,6 @@ export function usePredictions() {
     }
   }, []);
 
-  // Save to localStorage when predictions update
   useEffect(() => {
     if (Object.keys(predictions).length > 0) {
       try {
@@ -54,7 +54,7 @@ export function usePredictions() {
     fetchStats();
     fetchHistoricalData();
     fetchPredictionsFromDb();
-  }, [user]); // Re-fetch when user logs in/out
+  }, [user]);
 
   const fetchPredictionsFromDb = async () => {
     if (!isSupabaseConfigured()) return;
@@ -67,7 +67,7 @@ export function usePredictions() {
       if (error) throw error;
       
       if (data) {
-        const storedPredictions: Record<string, MatchAnalysis> = {};
+        const storedPredictions: Record<string, PredictionRecord> = {};
         data.forEach(p => {
           if (p.full_analysis) {
             try {
@@ -85,8 +85,6 @@ export function usePredictions() {
     }
   };
 
-  // Automatic analysis for top upcoming matches removed to conserve Gemini API quota.
-  // Users must now manually trigger analysis for matches that don't have predictions.
   useEffect(() => {
     if (matches.length > 0 && !hasAttemptedInitialAnalysis && !loading) {
       setHasAttemptedInitialAnalysis(true);
@@ -94,7 +92,6 @@ export function usePredictions() {
   }, [matches.length, loading, hasAttemptedInitialAnalysis]);
 
   useEffect(() => {
-    // Set up real-time polling every 3 seconds for live matches, 15s for upcoming/finished
     const liveStatus = ['IN_PLAY', 'PAUSED', 'LIVE'];
     const hasLiveMatches = matches.some(m => liveStatus.includes(m.status));
     const delay = hasLiveMatches ? 3000 : 15000;
@@ -118,7 +115,6 @@ export function usePredictions() {
       if (data) {
         const completed = data.filter(p => (p as any).status === 'completed');
         const accurate = completed.filter(p => {
-          // Simplified accuracy: correct winner or correct score
           const actualDiff = ((p as any).actual_score_home ?? 0) - ((p as any).actual_score_away ?? 0);
           const predictedDiff = (p as any).prediction_score_home - (p as any).prediction_score_away;
           return Math.sign(actualDiff) === Math.sign(predictedDiff);
@@ -163,7 +159,6 @@ export function usePredictions() {
         });
       }
       
-      // Filter for relevant matches (upcoming, live, and recently finished)
       const relevant = (data.matches || []).filter((m: any) => 
         ['TIMED', 'SCHEDULED', 'LIVE', 'IN_PLAY', 'PAUSED', 'FINISHED', 'AWARDED'].includes(m.status)
       );
@@ -179,7 +174,6 @@ export function usePredictions() {
   const runAnalysis = async (matchId: string) => {
     if (analyzingIds.has(matchId)) return;
     
-    // Check global cooldown (5 minute lockout if quota hit)
     if (globalCooldown && Date.now() < globalCooldown) {
       const remainingSec = Math.ceil((globalCooldown - Date.now()) / 1000);
       if (remainingSec > 60) {
@@ -189,7 +183,6 @@ export function usePredictions() {
       }
     }
     
-    // Individual user local throttle (don't allow clicking more than once every 10s per match)
     const lastAttempt = localStorage.getItem(`last_analysis_${matchId}`);
     if (lastAttempt && Date.now() - parseInt(lastAttempt) < 10000) {
        throw new Error("System processing. Please wait 10s.");
@@ -206,68 +199,16 @@ export function usePredictions() {
         delete next[matchId];
         return next;
       });
-      // Fetch H2H, Team Stats, and Weather concurrently for a high-fidelity scan
-      const venueToCity: Record<string, string> = {
-        "Emirates Stadium": "London",
-        "Etihad Stadium": "Manchester",
-        "Anfield": "Liverpool",
-        "Camp Nou": "Barcelona",
-        "Santiago Bernabéu": "Madrid",
-        "Allianz Arena": "Munich",
-      };
-      const city = venueToCity[match.venue] || match.area?.name || 'London';
 
-      const [h2hRes, homeStatsRes, awayStatsRes, weatherRes, oddsRes] = await Promise.allSettled([
-        fetch(`/api/matches/${matchId}/head2head`),
-        fetch(`/api/teams/${match.homeTeam.id}`),
-        fetch(`/api/teams/${match.awayTeam.id}`),
-        fetch(`/api/weather/${encodeURIComponent(city)}`),
-        fetch(`/api/odds/${matchId}`)
-      ]);
+      const result: MultiModelPrediction = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ matchId: parseInt(matchId) })
+      }).then(res => {
+        if (!res.ok) throw new Error(`Analysis failed: ${res.status}`);
+        return res.json();
+      });
 
-      let h2hData = null;
-      if (h2hRes.status === 'fulfilled' && h2hRes.value.ok) h2hData = await h2hRes.value.json();
-
-      let teamStats = undefined;
-      if (homeStatsRes.status === 'fulfilled' && homeStatsRes.value.ok && 
-          awayStatsRes.status === 'fulfilled' && awayStatsRes.value.ok) {
-        teamStats = {
-          home: await homeStatsRes.value.json(),
-          away: await awayStatsRes.value.json()
-        };
-      }
-
-      let weatherData = null;
-      if (weatherRes.status === 'fulfilled' && weatherRes.value.ok) weatherData = await weatherRes.value.json();
-
-      let oddsData = null;
-      if (oddsRes.status === 'fulfilled' && oddsRes.value.ok) oddsData = await oddsRes.value.json();
-
-      // Fetch Historical Trends from Supabase for Predictive RAG
-      let historicalTrends = null;
-      try {
-        if (isSupabaseConfigured() && match.competition?.id) {
-          const { data: trendData } = await supabase
-            .from('historical_trends')
-            .select('*')
-            .eq('league_id', match.competition.id.toString())
-            .single();
-          historicalTrends = trendData;
-        }
-      } catch (e) {
-        console.warn("Trend retrieval node bypassed:", e);
-      }
-
-      // Lineups usually not available via team/match proxy in free tier, but we'll try if endpoint exists
-      let lineups = null;
-      try {
-        const lineupsRes = await fetch(`/api/matches/${matchId}/lineups`);
-        if (lineupsRes.ok) lineups = await lineupsRes.json();
-      } catch (e) {}
-
-      const result: MatchAnalysis = await analyzeMatch(match, h2hData, teamStats, weatherData, lineups, oddsData, historicalTrends);
-      
-      // Inject timestamp for cache invalidation
       const resultWithMeta = { ...result, _timestamp: Date.now() };
       
       setPredictions(prev => ({ ...prev, [matchId]: resultWithMeta }));
@@ -276,11 +217,70 @@ export function usePredictions() {
         next.delete(matchId);
         return next;
       });
-      
-      // Parse scoreline "X-X"
-      const [h, a] = result.prediction.scoreline.split('-').map(n => parseInt(n.trim()));
 
-      // Record to Supabase (Optional for UI to function)
+      const poisson = result.poissonForecast;
+      const mostLikelyScoreline = poisson.poissonScorelines.length > 0 
+        ? poisson.poissonScorelines[0].score 
+        : '0-0';
+      const [h, a] = mostLikelyScoreline.split('-').map(n => parseInt(n.trim()));
+
+      let legacyMatchAnalysis: MatchAnalysis;
+      try {
+        legacyMatchAnalysis = {
+          match_id: matchId,
+          prediction: {
+            safe_side: result.quantitativeReasoning.finalQuantitativeVerdict,
+            scoreline: mostLikelyScoreline,
+            win_probability: {
+              home: poisson.homeWinProb,
+              away: poisson.awayWinProb,
+              draw: poisson.drawProb
+            },
+            confidence_score: Math.round(result.calibrationResult.calibratedHighestProb * 100),
+            volatility_index: result.anomalyReport.volatilityIndex,
+            expected_goals: { home: poisson.expectedGoalsHome, away: poisson.expectedGoalsAway },
+            btts_probability: poisson.bttsProb,
+            over_2_5_probability: poisson.over25Prob,
+            kelly_stake_percent: poisson.kellyPercentage,
+            poisson_scorelines: poisson.poissonScorelines
+          },
+          risk_assessment: {
+            level: result.anomalyReport.volatilityIndex > 70 ? 'High' : result.anomalyReport.volatilityIndex > 40 ? 'Medium' : 'Low',
+            primary_risk: result.quantitativeReasoning.uncertaintyExplicitLog || 'Market variance',
+            safety_buffer: result.anomalyReport.collapseRiskDetected ? 'Collapse risk detected' : 'Stable'
+          },
+          micro_events: result.quantitativeReasoning.evidenceChain.map(e => ({
+            type: e.metricName,
+            likelihood: e.statisticalSignificance === 'CRITICAL' ? 'High' : e.statisticalSignificance === 'NOTABLE' ? 'Med' : 'Low',
+            reason: e.deducedImpact
+          })),
+          reasoning_summary: result.quantitativeReasoning.verdictRationale
+        };
+      } catch (adaptErr) {
+        legacyMatchAnalysis = {
+          match_id: matchId,
+          prediction: {
+            safe_side: 'HOLD',
+            scoreline: mostLikelyScoreline,
+            win_probability: { home: 33, away: 33, draw: 34 },
+            confidence_score: 50,
+            volatility_index: 50,
+            expected_goals: { home: 1.2, away: 1.2 },
+            btts_probability: 0.5,
+            over_2_5_probability: 0.5,
+            kelly_stake_percent: 0,
+            poisson_scorelines: [{ score: mostLikelyScoreline, probability: 0.15 }]
+          },
+          risk_assessment: {
+            level: 'Medium',
+            primary_risk: 'Adaptation error',
+            safety_buffer: 'Minimal'
+          },
+          micro_events: [],
+          reasoning_summary: result.quantitativeReasoning?.verdictRationale || 'Analysis adaptation failed'
+        };
+      }
+
       try {
         if (isSupabaseConfigured()) {
           const payload: any = {
@@ -290,16 +290,15 @@ export function usePredictions() {
             competition_name: match.competition?.name || 'Unknown',
             prediction_score_home: isNaN(h) ? 0 : h,
             prediction_score_away: isNaN(a) ? 0 : a,
-            confidence_score: result.prediction.confidence_score,
-            volatility_index: result.prediction.volatility_index,
-            risk_level: result.risk_assessment.level,
-            analysis: result.reasoning_summary,
+            confidence_score: legacyMatchAnalysis.prediction.confidence_score,
+            volatility_index: result.anomalyReport.volatilityIndex,
+            risk_level: legacyMatchAnalysis.risk_assessment.level,
+            analysis: legacyMatchAnalysis.reasoning_summary,
             full_analysis: JSON.stringify(result),
-            coincidence_likelihood: JSON.stringify(result.micro_events),
+            coincidence_likelihood: JSON.stringify(legacyMatchAnalysis.micro_events),
             status: 'pending'
           };
 
-          // Attach user context if authenticated
           if (user) {
             payload.user_id = user.id;
           }
@@ -313,12 +312,10 @@ export function usePredictions() {
     } catch (e: any) {
       console.error("Analysis failed:", e);
       
-      // If it's a quota error, set global cooldown using retryAfterMs if available
       try {
         const message = e.message || "";
         let errData: any = null;
         
-        // Try to find JSON block if it's embedded or the whole message
         const jsonMatch = message.match(/\{.*\}/);
         if (jsonMatch) {
           try {
@@ -337,7 +334,7 @@ export function usePredictions() {
         }
       } catch (parseError) {
         if (e.message?.includes("429") || e.message?.includes("quota") || e.message?.includes("capacity")) {
-          setGlobalCooldown(Date.now() + 10 * 60 * 1000); // 10 minute fallback
+          setGlobalCooldown(Date.now() + 10 * 60 * 1000);
           setAnalysisErrors(prev => ({ ...prev, [matchId]: "Neural processor at capacity. Cooling down." }));
         } else {
           setAnalysisErrors(prev => ({ ...prev, [matchId]: e.message || "Unknown error" }));
@@ -348,7 +345,7 @@ export function usePredictions() {
         next.delete(matchId);
         return next;
       });
-      throw e; // Re-throw so caller (like triggerInitialAnalysis) knows to stop
+      throw e;
     }
   };
 
@@ -364,12 +361,11 @@ export function usePredictions() {
       if (error) throw error;
 
       if (data) {
-        // Group by day and calculate accuracy
         const grouped: Record<string, { total: number; correct: number }> = {};
         
         data.forEach(p => {
           const d = new Date((p as any).created_at);
-          const date = d.toISOString().split('T')[0]; // YYYY-MM-DD
+          const date = d.toISOString().split('T')[0];
           if (!grouped[date]) grouped[date] = { total: 0, correct: 0 };
           
           grouped[date].total++;

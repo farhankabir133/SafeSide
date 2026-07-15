@@ -18,6 +18,7 @@ import {
   TrendingDown
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { StaggerContainer, StaggerItem } from '@/src/components/motion/Stagger';
 import { cn } from '@/src/lib/utils';
 import { 
   LineChart, 
@@ -184,20 +185,15 @@ export default function DashboardPage() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
+      <StaggerContainer className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16" stagger={0.08}>
         {[
           { label: 'Intelligence Scans', value: stats.total, icon: Target, color: 'text-blue-500', trend: 'Global Network' },
           { label: 'Unit Accuracy', value: `${(stats.winRate || 0).toFixed(1)}%`, icon: Trophy, color: 'text-emerald-500', trend: 'Delta: Stable' },
           { label: 'Tactical ROI', value: `${(stats.roi || 0).toFixed(1)}%`, icon: stats.roi >= 0 ? TrendingUp : TrendingDown, color: stats.roi >= 0 ? 'text-yellow-500' : 'text-red-500', trend: '1.9 Avg Basis' },
           { label: 'Operational Streak', value: stats.streak, icon: Activity, color: 'text-zinc-100', trend: 'Verified' },
         ].map((stat, i) => (
-          <motion.div 
-            key={i}
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: i * 0.1 }}
-          >
-            <Card className="bg-zinc-950 border-zinc-900 p-8 rounded-[40px] relative overflow-hidden group hover:border-zinc-700 transition-all duration-500">
+          <StaggerItem key={i}>
+            <Card className="bg-zinc-950 border-zinc-900 p-8 rounded-[40px] relative overflow-hidden group hover:border-zinc-700 hover:bg-zinc-900/30 transition-all duration-500">
               <div className="absolute top-0 right-0 p-6 opacity-[0.03] group-hover:opacity-[0.08] transition-opacity">
                 <stat.icon className={`w-20 h-20 ${stat.color}`} />
               </div>
@@ -210,9 +206,9 @@ export default function DashboardPage() {
                 </div>
               </div>
             </Card>
-          </motion.div>
+          </StaggerItem>
         ))}
-      </div>
+      </StaggerContainer>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 mb-16">
         {/* P&L Flow Chart */}
@@ -310,7 +306,7 @@ export default function DashboardPage() {
           </TableHeader>
           <TableBody>
             {pagedPredictions.length > 0 ? pagedPredictions.map((p) => (
-              <TableRow key={p.id} className="border-zinc-900 hover:bg-zinc-900/30 transition-colors">
+              <TableRow key={p.id} className="border-zinc-900 hover:bg-zinc-900/50 hover:border-zinc-800 transition-all group">
                 <TableCell className="pl-8">
                   <p className="font-bold uppercase tracking-tight text-zinc-100">{p.home_team} vs {p.away_team}</p>
                   <p className="text-[9px] font-black uppercase text-zinc-600 tracking-widest">{p.competition_name || 'LEAGUE SCAN'}</p>

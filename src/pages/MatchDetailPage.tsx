@@ -34,8 +34,10 @@ import { Separator } from '@/src/components/ui/separator';
 import { Skeleton } from '@/src/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/src/components/ui/tabs';
 import { Progress } from '@/src/components/ui/progress';
-import { Card, CardHeader, CardContent, CardFooter } from '@/src/components/ui/card';
+import { Card, CardHeader, CardContent, CardFooter, CardTitle } from '@/src/components/ui/card';
 import { cn } from '@/src/lib/utils';
+import { PredictionWorkbench } from '@/src/components/PredictionWorkbench';
+import { ModelExplainabilityPanel } from '@/src/components/ModelExplainabilityPanel';
 import { MatchAnalysis, analyzeMatch } from '@/src/services/geminiService';
 import { supabase, isSupabaseConfigured, HistoricalTrend } from '@/src/lib/supabase';
 import ReactMarkdown from 'react-markdown';
@@ -126,8 +128,8 @@ export default function MatchDetailPage() {
           const details = await detailsRes.value.json();
           setMatchDetails(details);
 
-          const city = venueToCity[details.venue] || details.area?.name || 'London';
-          const weatherRes = await fetch(`/api/weather/${encodeURIComponent(city)}`);
+const city = venueToCity[details.venue] || (details.area?.name !== "World" ? details.area?.name : "London");
+           const weatherRes = await fetch(`/api/weather/${encodeURIComponent(city)}`);
           if (weatherRes.ok) setWeather(await weatherRes.json());
 
           // Fetch Historical Trends for this competition
@@ -498,8 +500,13 @@ export default function MatchDetailPage() {
           <TabsList className="w-full flex overflow-x-auto bg-zinc-900/50 border border-zinc-800 p-1 rounded-2xl h-16 mb-8 scrollbar-hide">
             {[
               { id: 'overview', label: 'Overview' },
+              { id: 'predictions', label: 'Predictions' },
+              { id: 'tactical', label: 'Tactical' },
               { id: 'form', label: 'Team Form' },
               { id: 'h2h', label: 'Head to Head' },
+              { id: 'model-breakdown', label: 'Model Breakdown' },
+              { id: 'confidence', label: 'Confidence' },
+              { id: 'risk', label: 'Risk' },
               { id: 'stats', label: 'Statistics' },
               { id: 'ai-report', label: 'AI Report' },
               { id: 'lineups', label: 'Lineups' },
@@ -740,7 +747,7 @@ export default function MatchDetailPage() {
                          </div>
                          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             {h2hData?.matches?.slice(0, 3).map((m: any, i: number) => (
-                               <div key={i} className="bg-zinc-900/20 border border-zinc-900/50 rounded-3xl p-6 flex flex-col items-center gap-4 group hover:bg-zinc-900/40 transition-all">
+                                <div key={i} className="bg-zinc-900/20 border border-zinc-900/50 rounded-3xl p-6 flex flex-col items-center gap-4 group hover:bg-zinc-900/50 hover:border-zinc-700 hover:shadow-lg transition-all">
                                   <div className="flex items-center justify-between w-full text-[9px] font-black uppercase tracking-widest text-zinc-600">
                                      <span>{new Date(m.utcDate).getFullYear()}</span>
                                      <span>{m.competition.code}</span>
@@ -789,7 +796,7 @@ export default function MatchDetailPage() {
                     </div>
                     
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                      <Card className="bg-zinc-950/50 border-zinc-900 rounded-[32px] p-8 flex flex-col gap-6 group hover:border-zinc-800 transition-all">
+                      <Card className="bg-zinc-950/50 border-zinc-900 rounded-[32px] p-8 flex flex-col gap-6 group hover:border-zinc-800 hover:bg-zinc-900/30 transition-all">
                         <div className="flex justify-between items-center text-[9px] font-black uppercase tracking-widest text-zinc-500">
                           <span>Home/Away Power Balance</span>
                           <Trophy className="w-3.5 h-3.5 opacity-30" />
@@ -824,7 +831,7 @@ export default function MatchDetailPage() {
                         </div>
                       </Card>
 
-                      <Card className="bg-zinc-950/50 border-zinc-900 rounded-[32px] p-8 flex flex-col gap-6 group hover:border-zinc-800 transition-all">
+                      <Card className="bg-zinc-950/50 border-zinc-900 rounded-[32px] p-8 flex flex-col gap-6 group hover:border-zinc-800 hover:bg-zinc-900/30 transition-all">
                         <div className="flex justify-between items-center text-[9px] font-black uppercase tracking-widest text-zinc-500">
                           <span>Tactical Anomaly Frequency</span>
                           <Zap className="w-3.5 h-3.5 opacity-30" />
@@ -867,7 +874,7 @@ export default function MatchDetailPage() {
                         </div>
                       </Card>
 
-                      <Card className="bg-zinc-950/50 border-zinc-900 rounded-[32px] p-8 flex flex-col justify-between group hover:border-zinc-800 transition-all">
+                      <Card className="bg-zinc-950/50 border-zinc-900 rounded-[32px] p-8 flex flex-col justify-between group hover:border-zinc-800 hover:bg-zinc-900/30 transition-all">
                          <div className="flex justify-between items-center text-[9px] font-black uppercase tracking-widest text-zinc-500">
                             <span>League Production (xG)</span>
                             <Activity className="w-3.5 h-3.5 opacity-30" />
@@ -923,7 +930,7 @@ export default function MatchDetailPage() {
                    </div>
                    <div className="space-y-4">
                       {h2hData?.matches?.slice(0, h2hFilter === 'recent' ? 5 : undefined).map((m: any) => (
-                        <div key={m.id} className="group bg-zinc-950 border border-zinc-900 rounded-[32px] p-8 hover:border-zinc-700 transition-all duration-500 hover:shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+                         <div key={m.id} className="group bg-zinc-950 border border-zinc-900 rounded-[32px] p-8 hover:border-zinc-700 hover:bg-zinc-900/30 transition-all duration-500 hover:shadow-[0_0_40px_rgba(0,0,0,0.5)]">
                            <div className="flex flex-col md:flex-row items-center gap-8">
                               <div className="shrink-0 w-full md:w-32 flex flex-col items-center md:items-start bg-zinc-900/50 border border-zinc-800 rounded-2xl p-4">
                                 <span className="text-xl font-black font-mono text-white leading-none mb-1">{new Date(m.utcDate).getFullYear()}</span>
@@ -1392,7 +1399,51 @@ export default function MatchDetailPage() {
                <Skeleton className="h-96 bg-zinc-900 rounded-[40px]" />
              )}
           </TabsContent>
-        </Tabs>
+            <TabsContent value="predictions">
+              {matchDetails && analysis ? (
+                <PredictionWorkbench prediction={analysis as any} match={matchDetails} />
+              ) : (
+                <Skeleton className="h-96 bg-zinc-900 rounded-[40px]" />
+              )}
+            </TabsContent>
+
+            <TabsContent value="tactical">
+              <Card className="bg-zinc-950 border-zinc-900 rounded-[32px] p-8">
+                <CardHeader>
+                  <CardTitle className="text-sm font-black uppercase tracking-widest text-zinc-400">Tactical Intelligence</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-xs text-zinc-600 font-mono">Tactical analysis pending live telemetry stream.</p>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="model-breakdown">
+              <ModelExplainabilityPanel poissonContrib={40} dixonColesContrib={25} eloContrib={20} weatherImpact={5} formImpact={15} marketContrib={10} homeAdvantage={10} />
+            </TabsContent>
+
+            <TabsContent value="confidence">
+              <Card className="bg-zinc-950 border-zinc-900 rounded-[32px] p-8">
+                <CardHeader>
+                  <CardTitle className="text-sm font-black uppercase tracking-widest text-zinc-400">Confidence Analysis</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-xs text-zinc-600 font-mono">Bayesian calibration data will appear here after model execution.</p>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="risk">
+              <Card className="bg-zinc-950 border-zinc-900 rounded-[32px] p-8">
+                <CardHeader>
+                  <CardTitle className="text-sm font-black uppercase tracking-widest text-zinc-400">Risk Assessment</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-xs text-zinc-600 font-mono">Anomaly detection and volatility analysis will render here after prediction generation.</p>
+                </CardContent>
+              </Card>
+            </TabsContent>
+         </Tabs>
       </div>
 
       {/* Floating Action Button for Analysis */}
@@ -1434,7 +1485,7 @@ const TacticalInsightList = ({ insights }: { insights: string[] }) => {
             initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: idx * 0.1 }}
-            className="flex items-start gap-4 bg-zinc-900/30 border border-zinc-800/50 rounded-2xl p-5 hover:border-emerald-500/30 transition-all group"
+             className="flex items-start gap-4 bg-zinc-900/30 border border-zinc-800/50 rounded-2xl p-5 hover:border-emerald-500/30 hover:bg-zinc-800/50 transition-all group"
           >
             <div className={cn(
               "w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border",
@@ -1461,7 +1512,7 @@ const TacticalInsightList = ({ insights }: { insights: string[] }) => {
 };
 
 const TrendMetric = ({ label, value, icon: Icon, subValue }: any) => (
-  <div className="bg-zinc-950 border border-zinc-900 rounded-[28px] p-6 hover:border-zinc-800 transition-all group">
+  <div className="bg-zinc-950 border border-zinc-900 rounded-[28px] p-6 hover:border-zinc-800 hover:bg-zinc-900/50 transition-all group">
      <div className="flex items-center gap-2 text-zinc-500 mb-4">
         <Icon className="w-3.5 h-3.5" />
         <span className="text-[9px] font-black uppercase tracking-widest">{label}</span>
@@ -1489,7 +1540,7 @@ const AIDiagnosticGauge = ({ label, value, type }: { label: string, value: any, 
   const colors = getColors();
 
   return (
-    <Card className="bg-zinc-950 border-zinc-900 rounded-[32px] p-6 group hover:border-zinc-800 transition-all">
+    <Card className="bg-zinc-950 border-zinc-900 rounded-[32px] p-6 group hover:border-zinc-800 hover:bg-zinc-900/30 transition-all">
       <div className="flex items-center justify-between mb-4">
         <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">{label}</span>
         <Badge variant="outline" className={cn("text-[8px] uppercase font-black", colors.border, colors.text)}>
@@ -1560,7 +1611,7 @@ const QuickStat = ({ label, value, icon: Icon, accent = 'text-white' }: any) => 
 );
 
 const IntelligenceMetric = ({ label, value }: any) => (
-  <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-4 text-center">
+  <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-4 text-center hover:border-zinc-700 hover:bg-zinc-800/50 transition-all">
     <span className="text-[9px] font-black text-zinc-600 uppercase tracking-widest block mb-1">{label}</span>
     <span className="text-sm font-black text-zinc-200">{value}</span>
   </div>
@@ -1754,7 +1805,7 @@ const TeamStatsColumn = ({ team, stats, side }: any) => {
 };
 
 const CategorySection = ({ title, icon: Icon, children }: any) => (
-  <div className="bg-zinc-950 border border-zinc-900 rounded-[40px] overflow-hidden group hover:border-zinc-800 transition-all">
+  <div className="bg-zinc-950 border border-zinc-900 rounded-[40px] overflow-hidden group hover:border-zinc-800 hover:bg-zinc-900/20 transition-all">
      <div className="px-8 py-5 border-b border-zinc-900 bg-zinc-950 flex items-center gap-4">
         <div className="w-8 h-8 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center">
            <Icon className="w-4 h-4 text-zinc-500" />
@@ -1858,7 +1909,7 @@ const FormPanel = ({ side, teamName, teamId, recentMatches }: any) => {
   const cleanSheetProb = recentMatches?.length ? Math.round((cleanSheets / recentMatches.length) * 100) : 0;
 
   return (
-    <Card className="bg-zinc-950 border-zinc-900 rounded-[40px] p-8 space-y-8">
+    <Card className="bg-zinc-950 border-zinc-900 rounded-[40px] p-8 space-y-8 hover:border-zinc-800 hover:bg-zinc-900/20 transition-all">
        <div className="flex items-center gap-4">
           <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg", side === 'home' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-blue-500/10 text-blue-500')}>
              {side === 'home' ? 'H' : 'A'}
@@ -1917,7 +1968,7 @@ const FormPanel = ({ side, teamName, teamId, recentMatches }: any) => {
 };
 
 const StatLine = ({ label, value, color = 'text-white' }: any) => (
-  <div className="flex justify-between items-center py-4 border-b border-zinc-900/50 last:border-0">
+  <div className="flex justify-between items-center py-4 border-b border-zinc-900/50 last:border-0 hover:bg-zinc-900/20 transition-colors">
      <span className="text-[10px] font-black uppercase text-zinc-500 tracking-widest">{label}</span>
      <span className={cn("text-lg font-black tracking-tighter", color)}>{value}</span>
   </div>
@@ -1972,7 +2023,7 @@ const TeamLineup = ({ side, team, data, isPredicted = false }: any) => {
              {isPredicted ? 'AI Predicted Tactical Roster' : 'Operational Roster (Starting XI)'}
           </h5>
           {startXI.map((player: any) => (
-            <div key={player.id} className="flex items-center justify-between p-4 bg-zinc-950 border border-zinc-900 rounded-2xl group hover:border-zinc-700 transition-all">
+             <div key={player.id} className="flex items-center justify-between p-4 bg-zinc-950 border border-zinc-900 rounded-2xl group hover:border-zinc-700 hover:bg-zinc-900/50 transition-all">
                <div className="flex items-center gap-4">
                   <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs", side === 'home' ? 'bg-yellow-500 text-black' : 'bg-blue-600 text-white')}>
                      {player.shirtNumber}
@@ -2004,7 +2055,7 @@ const OddsCard = ({ bookie, homeProb }: any) => {
   const isValue = homeProb && (homeProb / 100 > impliedHomeProb);
 
   return (
-    <Card className="bg-zinc-950 border-zinc-900 rounded-3xl overflow-hidden group hover:border-zinc-700 transition-all duration-500">
+    <Card className="bg-zinc-950 border-zinc-900 rounded-3xl overflow-hidden group hover:border-zinc-700 hover:bg-zinc-900/30 transition-all duration-500">
        <div className="bg-zinc-900/50 p-6 border-b border-zinc-900 flex items-center justify-between">
           <span className="text-sm font-black uppercase tracking-tighter">{bookie.name}</span>
           {isValue && (
