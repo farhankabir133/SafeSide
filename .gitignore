@@ -10,3 +10,4 @@ coverage/
 # Local AI-tooling runtimes / caches (environment-specific, not project source)
 .kilo/
 .jetro/
+.vercel

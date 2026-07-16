@@ -1,7 +1,7 @@
 import express from "express";
 import path from "path";
 import "dotenv/config";
-import registerRoutes from "./routes";
+import registerRoutes from "./routes/index";
 import { notFound, errorHandler } from "./middleware/errorHandler";
 import { corsMiddleware } from "./middleware/cors";
 import { requestId } from "./middleware/requestId";

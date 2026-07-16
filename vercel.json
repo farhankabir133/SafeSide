@@ -9,7 +9,7 @@
   ],
   "functions": {
     "api/index.ts": {
-      "includeFiles": ["dist/**", "server/**"],
+      "includeFiles": "dist/**, server/**",
       "maxDuration": 60
     }
   },
